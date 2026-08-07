@@ -1,0 +1,9 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: aurora-clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./infra/clickhouse/init:/docker-entrypoint-initdb.d

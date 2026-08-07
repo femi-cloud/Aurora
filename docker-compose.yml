@@ -6,4 +6,4 @@ services:
       - "8123:8123"
       - "9000:9000"
     volumes:
-      - ./infra/clickhouse/init:/docker-entrypoint-initdb.d
+      - ./infra/clickhouse/init:/docker-entrypoint-initdb.d 

@@ -3,3 +3,10 @@ venv/
 .env
 dist/
 *.log
+
+frontend/node_modules/
+backend/node_modules/
+
+backend/venv/
+backend/.env
+frontend/.env

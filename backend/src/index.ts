@@ -1,7 +1,9 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import { createServer } from "node:http";
 import { testClickhouseConnection } from "./clickhouse/client";
+import { attachWebSocketServer } from "./ws/server.js";
 
 dotenv.config();
 
@@ -23,6 +25,9 @@ app.get("/health/clickhouse", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+const httpServer = createServer(app);
+attachWebSocketServer(httpServer);
+
+httpServer.listen(PORT, () => {
   console.log(`Aurora backend running on port ${PORT}`);
 });

@@ -7,3 +7,7 @@ services:
       - "9000:9000"
     volumes:
       - ./infra/clickhouse/init:/docker-entrypoint-initdb.d 
+    environment:
+      CLICKHOUSE_DB: aurora
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: aurora_dev_password

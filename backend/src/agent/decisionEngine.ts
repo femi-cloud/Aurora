@@ -1,14 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { askGeminiJSON } from "./gemini.js";
-interface AgentDecision {
-  id: string;
-  createdAt: string;
-  titleId: string;
-  type: "prioritize_dubbing" | "recut_scene" | "boost_market" | "monitor";
-  summary: string;
-  reasoning: string;
-  status: "pending" | "accepted" | "rejected";
-}
+import type { AgentDecision } from "../../../packages/shared/src/types";
 
 /**
  * Aggregated signal for a single title, produced by the ML service

@@ -1,23 +1,21 @@
+import { Snapshot } from "./components/Snapshot";
+import { Timeline } from "./components/Timeline";
+import { RegionalBreakdown } from "./components/RegionalBreakdown";
+import { Anomalies } from "./components/Anomalies";
 import { RecommendationsPanel } from "./components/RecommendationsPanel";
-import "./App.css";
 
 function App() {
   return (
-    <>
-      <div className="mx-auto max-w-4xl px-6 py-10">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold">Aurora</h1>
-          <p className="text-muted-foreground">
-            Live audience signal, agent recommendations.
-          </p>
-        </header>
+    <div className="min-h-screen bg-slate-900 text-white p-8">
+      <h1 className="text-3xl font-bold mb-6">Aurora — Dashboard</h1>
+      <RecommendationsPanel />
+      <Snapshot />
+      <Timeline />
+      <RegionalBreakdown />
+      <Anomalies />
+    </div>
 
-        <main>
-          <RecommendationsPanel />
-          {/* Person A's data components (timeline, charts by region/title) go here too */}
-        </main>
-      </div>
-    </>
+    
   );
 }
 

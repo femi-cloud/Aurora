@@ -11,3 +11,4 @@ backend/venv/
 ml-service/venv/
 backend/.env
 frontend/.env
+__pycache__/

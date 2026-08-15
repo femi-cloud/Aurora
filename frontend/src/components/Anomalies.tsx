@@ -60,13 +60,13 @@ export function Anomalies() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-xl font-bold mb-4">Anomalies détectées</h2>
+      <h2 className="text-xl font-bold mb-4">Detected anomalies</h2>
 
-      {loading && <p>Chargement...</p>}
-      {error && <p className="text-red-400">Erreur: {error}</p>}
+      {loading && <p>Loading...</p>}
+      {error && <p className="text-red-400">Error: {error}</p>}
 
       {!loading && !error && log.length === 0 && (
-        <p className="text-slate-400">Aucune anomalie détectée pour le moment.</p>
+        <p className="text-slate-400">No anomalies detected at the moment.</p>
       )}
 
       {!loading && !error && log.length > 0 && (
@@ -84,13 +84,13 @@ export function Anomalies() {
                 <p className="font-bold flex items-center gap-2">
                   {anomaly.title_name}
                   {anomaly.stillActive ? (
-                    <span className="text-xs bg-red-600 px-2 py-0.5 rounded">EN COURS</span>
+                    <span className="text-xs bg-red-600 px-2 py-0.5 rounded">ACTIVE</span>
                   ) : (
-                    <span className="text-xs bg-slate-600 px-2 py-0.5 rounded">résolue</span>
+                    <span className="text-xs bg-slate-600 px-2 py-0.5 rounded">resolved</span>
                   )}
                 </p>
                 <p className="text-sm text-slate-400">
-                  Région: {anomaly.region} · détecté à {anomaly.detectedAt}
+                  Region: {anomaly.region} · detected at {anomaly.detectedAt}
                 </p>
               </div>
               <div className="text-right">
@@ -99,7 +99,7 @@ export function Anomalies() {
                 </p>
                 <p className="text-sm text-slate-400">
                   {Math.round(anomaly.current_rate * 100)}% vs{" "}
-                  {Math.round(anomaly.baseline_rate * 100)}% habituel
+                  {Math.round(anomaly.baseline_rate * 100)}% baseline
                 </p>
               </div>
             </div>

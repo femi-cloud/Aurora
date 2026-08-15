@@ -85,8 +85,8 @@ export function Timeline() {
         </select>
       </div>
 
-      {loading && <p>Chargement...</p>}
-      {error && <p className="text-red-400">Erreur: {error}</p>}
+      {loading && <p>Loading...</p>}
+      {error && <p className="text-red-400">Error: {error}</p>}
 
       {!loading && !error && (
         <ResponsiveContainer width="100%" height={300}>

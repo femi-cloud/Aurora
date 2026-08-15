@@ -51,7 +51,7 @@ export function DropoffPredictor() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-xl font-bold mb-4">Simulateur de prédiction (XGBoost)</h2>
+      <h2 className="text-xl font-bold mb-4">Drop-off prediction simulator (XGBoost)</h2>
 
       <div className="flex gap-3 mb-4 flex-wrap">
         <select
@@ -89,16 +89,16 @@ export function DropoffPredictor() {
           disabled={loading}
           className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white px-6 py-2 rounded"
         >
-          {loading ? "..." : "Prédire"}
+          {loading ? "..." : "Predict"}
         </button>
       </div>
 
-      {error && <p className="text-red-400">Erreur: {error}</p>}
+      {error && <p className="text-red-400">Error: {error}</p>}
 
       {result && (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
           <p className="text-sm text-slate-400 mb-1">
-            Probabilité de drop-off pour {TITLES.find((t) => t.id === titleId)?.name} · {region} · {device}
+            Drop-off probability for {TITLES.find((t) => t.id === titleId)?.name} · {region} · {device}
           </p>
           <p className={`text-4xl font-bold ${riskColor}`}>{percentage}%</p>
         </div>

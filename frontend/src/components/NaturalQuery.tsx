@@ -44,14 +44,14 @@ export function NaturalQuery() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-xl font-bold mb-4">Poser une question</h2>
+      <h2 className="text-xl font-bold mb-4">Ask a question</h2>
 
       <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
         <input
           type="text"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          placeholder="Ex: Quel titre a le plus de drop-off en EU ?"
+          placeholder="E.g. Which title has the most drop-off in EU?"
           className="flex-1 bg-slate-800 text-white border border-slate-700 rounded px-4 py-2"
         />
         <button
@@ -59,11 +59,11 @@ export function NaturalQuery() {
           disabled={loading}
           className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white px-6 py-2 rounded"
         >
-          {loading ? "..." : "Demander"}
+          {loading ? "..." : "Ask"}
         </button>
       </form>
 
-      {error && <p className="text-red-400 mb-4">Erreur: {error}</p>}
+      {error && <p className="text-red-400 mb-4">Error: {error}</p>}
 
       {result && (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
@@ -73,7 +73,7 @@ export function NaturalQuery() {
             onClick={() => setShowSql(!showSql)}
             className="text-sm text-blue-400 hover:underline"
           >
-            {showSql ? "Masquer" : "Voir"} la requête SQL générée
+            {showSql ? "Hide" : "Show"} generated SQL query
           </button>
 
           {showSql && (

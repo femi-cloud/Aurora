@@ -60,7 +60,7 @@ export function RegionalBreakdown() {
   return (
     <div className="mt-8">
       <div className="flex items-center gap-4 mb-4">
-        <h2 className="text-xl font-bold">Répartition par région</h2>
+        <h2 className="text-xl font-bold">Regional Breakdown</h2>
         <select
           value={selectedTitle}
           onChange={(e) => setSelectedTitle(e.target.value)}
@@ -74,8 +74,8 @@ export function RegionalBreakdown() {
         </select>
       </div>
 
-      {loading && <p>Chargement...</p>}
-      {error && <p className="text-red-400">Erreur: {error}</p>}
+      {loading && <p>Loading...</p>}
+      {error && <p className="text-red-400">Error: {error}</p>}
 
       {!loading && !error && (
         <ResponsiveContainer width="100%" height={300}>

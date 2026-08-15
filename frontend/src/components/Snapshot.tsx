@@ -21,18 +21,18 @@ export function Snapshot() {
     return () => clearInterval(interval); // nettoyage quand le composant se démonte
   }, []);
 
-  if (loading) return <p className="text-white">Chargement...</p>;
-  if (error) return <p className="text-red-400">Erreur: {error}</p>;
+  if (loading) return <p className="text-white">Loading...</p>;
+  if (error) return <p className="text-red-400">Error: {error}</p>;
 
   return (
     <table className="w-full text-white border-collapse">
       <thead>
         <tr className="border-b border-slate-700 text-left">
-          <th className="p-2">Titre</th>
-          <th className="p-2">Région</th>
+          <th className="p-2">Title</th>
+          <th className="p-2">Region</th>
           <th className="p-2">Viewers</th>
           <th className="p-2">Drop-off</th>
-          <th className="p-2">Durée moy. (s)</th>
+          <th className="p-2">Avg. Duration (s)</th>
         </tr>
       </thead>
       <tbody>

@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   LineChart,
   Line,
   XAxis,
@@ -72,17 +79,27 @@ export function Timeline() {
     <div className="mt-8">
       <div className="flex items-center gap-4 mb-4">
         <h2 className="text-xl font-bold">Timeline</h2>
-        <select
+        <Select
           value={selectedTitle}
-          onChange={(e) => setSelectedTitle(e.target.value)}
-          className="bg-slate-800 text-white border border-slate-700 rounded px-3 py-1"
+          onValueChange={(value) => {
+            if (value) setSelectedTitle(value);
+          }}
         >
-          {TITLES.map((title) => (
-            <option key={title.id} value={title.id}>
-              {title.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-55 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
+            {TITLES.map((title) => (
+              <SelectItem
+                key={title.id}
+                value={title.id}
+                className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee data-[state=checked]:text-marquee data-[state=checked]:font-semibold"
+              >
+                {title.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {loading && <p>Loading...</p>}

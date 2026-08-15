@@ -8,6 +8,17 @@ interface NaturalQueryResult {
   answer: string;
 }
 
+function renderInline(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith("**") && part.endsWith("**") ? (
+      <strong key={i}>{part.slice(2, -2)}</strong>
+    ) : (
+      part
+    )
+  );
+}
+
 export function NaturalQuery() {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<NaturalQueryResult | null>(null);
@@ -52,34 +63,34 @@ export function NaturalQuery() {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="E.g. Which title has the most drop-off in EU?"
-          className="flex-1 bg-slate-800 text-white border border-slate-700 rounded px-4 py-2"
+          className="flex-1 bg-surface text-ink border border-border rounded-lg px-4 py-2 font-mono text-sm focus:outline-none focus:border-marquee/50 transition-colors"
         />
         <button
           type="submit"
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white px-6 py-2 rounded"
+          className="bg-marquee hover:bg-marquee/90 disabled:bg-muted disabled:text-muted-foreground text-void font-mono text-sm font-semibold px-6 py-2 rounded-lg transition-colors"
         >
           {loading ? "..." : "Ask"}
         </button>
       </form>
 
-      {error && <p className="text-red-400 mb-4">Error: {error}</p>}
+      {error && <p className="text-tally mb-4">Error: {error}</p>}
 
       {result && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <p className="text-lg mb-3">{result.answer}</p>
+        <div className="bg-surface border border-border rounded-lg p-4">
+          <p className="text-lg mb-3">{renderInline(result.answer)}</p>
 
           <button
             onClick={() => setShowSql(!showSql)}
-            className="text-sm text-blue-400 hover:underline"
+            className="text-sm text-scope hover:underline"
           >
             {showSql ? "Hide" : "Show"} generated SQL query
           </button>
 
           {showSql && (
-            <div className="mt-3 bg-slate-900 rounded p-3">
-              <p className="text-sm text-slate-400 mb-2">{result.explanation}</p>
-              <pre className="text-xs text-green-400 overflow-x-auto">{result.sql}</pre>
+            <div className="mt-3 bg-void rounded-lg p-3">
+              <p className="text-sm text-muted-foreground mb-2">{renderInline(result.explanation)}</p>
+              <pre className="text-xs text-scope overflow-x-auto font-mono">{result.sql}</pre>
             </div>
           )}
         </div>

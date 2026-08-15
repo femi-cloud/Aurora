@@ -1,5 +1,14 @@
 import { useState } from "react";
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { RadialGauge } from "./RadialGauge";
+
 const TITLES = [
   { id: "aurora-01", name: "Nightfall Protocol" },
   { id: "aurora-02", name: "The Last Reel" },
@@ -46,61 +55,95 @@ export function DropoffPredictor() {
   }
 
   const percentage = result ? Math.round(result.drop_off_probability * 100) : null;
-  const riskColor =
-    percentage === null ? "" : percentage >= 60 ? "text-red-400" : percentage >= 30 ? "text-yellow-400" : "text-green-400";
 
   return (
     <div className="mt-8">
       <h2 className="text-xl font-bold mb-4">Drop-off prediction simulator (XGBoost)</h2>
 
       <div className="flex gap-3 mb-4 flex-wrap">
-        <select
+        <Select
           value={titleId}
-          onChange={(e) => setTitleId(e.target.value)}
-          className="bg-slate-800 text-white border border-slate-700 rounded px-3 py-2"
+          onValueChange={(value) => {
+            if (value) setTitleId(value);
+          }}
         >
-          {TITLES.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
+          <SelectTrigger className="w-55 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
+            {TITLES.map((t) => (
+              <SelectItem
+                key={t.id}
+                value={t.id}
+                className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee data-[state=checked]:text-marquee data-[state=checked]:font-semibold"
+              >
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <select
+        <Select
           value={region}
-          onChange={(e) => setRegion(e.target.value)}
-          className="bg-slate-800 text-white border border-slate-700 rounded px-3 py-2"
+          onValueChange={(value) => {
+            if (value) setRegion(value);
+          }}
         >
-          {REGIONS.map((r) => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
+          <SelectTrigger className="w-30 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
+            {REGIONS.map((r) => (
+              <SelectItem
+                key={r}
+                value={r}
+                className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee data-[state=checked]:text-marquee data-[state=checked]:font-semibold"
+              >
+                {r}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
-        <select
+        <Select
           value={device}
-          onChange={(e) => setDevice(e.target.value)}
-          className="bg-slate-800 text-white border border-slate-700 rounded px-3 py-2"
+          onValueChange={(value) => {
+            if (value) setDevice(value);
+          }}
         >
-          {DEVICES.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
+          <SelectTrigger className="w-35 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
+            {DEVICES.map((d) => (
+              <SelectItem
+                key={d}
+                value={d}
+                className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee data-[state=checked]:text-marquee data-[state=checked]:font-semibold"
+              >
+                {d}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         <button
           onClick={handlePredict}
           disabled={loading}
-          className="bg-blue-600 hover:bg-blue-500 disabled:bg-slate-700 text-white px-6 py-2 rounded"
+          className="bg-marquee hover:bg-marquee/90 disabled:bg-muted disabled:text-muted-foreground text-void font-mono text-sm font-semibold px-6 py-2 rounded-lg transition-colors"
         >
           {loading ? "..." : "Predict"}
-        </button>
+        </button> 
       </div>
 
       {error && <p className="text-red-400">Error: {error}</p>}
 
       {result && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <p className="text-sm text-slate-400 mb-1">
+        <div className="bg-surface border border-border rounded-lg p-4 flex items-center gap-4">
+          <RadialGauge percentage={percentage ?? 0} size={72} />
+          <p className="text-sm text-muted-foreground">
             Drop-off probability for {TITLES.find((t) => t.id === titleId)?.name} · {region} · {device}
           </p>
-          <p className={`text-4xl font-bold ${riskColor}`}>{percentage}%</p>
         </div>
       )}
     </div>

@@ -12,7 +12,7 @@ const ML_SERVICE_URL = process.env.ML_SERVICE_URL ?? "http://localhost:8000";
 
 // Sous ce seuil, on ne dérange pas Gemini : sans filtre, chaque couple
 // titre/région produirait un "monitor" à chaque cycle.
-const ANOMALY_SCORE_THRESHOLD = 0.5;
+const ANOMALY_SCORE_THRESHOLD = Number(process.env.ANOMALY_SCORE_THRESHOLD ?? 1.0);
 
 interface MlAnomalyRow {
   minute: string;

@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { testClickhouseConnection } from "./clickhouse/client";
 import { attachWebSocketServer } from "./ws/server.js";
 import { startOrchestrator } from "./agent/orchestrator.js";
+import { runNaturalQuery } from "./agent/sqlAgent.js";
 import {
   getCurrentSnapshot,
   getAudienceTimeline,
@@ -75,6 +76,37 @@ app.get("/api/anomalies", async (req, res) => {
   } catch (err) {
     console.error("[api/anomalies] erreur:", err);
     res.status(500).json({ error: "Impossible de récupérer les anomalies" });
+  }
+});
+
+app.get("/api/predict/dropoff", async (req, res) => {
+  try {
+    const { titleId, region, device } = req.query;
+    const params = new URLSearchParams({
+      title_id: titleId as string,
+      region: region as string,
+      device: (device as string) ?? "unknown",
+    });
+    const mlResponse = await fetch(`${process.env.ML_SERVICE_URL}/predict/dropoff?${params}`);
+    const data = await mlResponse.json();
+    res.json(data);
+  } catch (err) {
+    console.error("[api/predict/dropoff] erreur:", err);
+    res.status(500).json({ error: "Impossible de récupérer la prédiction" });
+  }
+});
+
+app.post("/api/query/natural", async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question || typeof question !== "string") {
+      return res.status(400).json({ error: "Le champ 'question' est requis" });
+    }
+    const result = await runNaturalQuery(question);
+    res.json(result);
+  } catch (err) {
+    console.error("[api/query/natural] erreur:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Erreur inconnue" });
   }
 });
 

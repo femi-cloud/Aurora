@@ -11,9 +11,9 @@ def startup_event():
     rows = get_raw_events(5000)
     if len(rows) >= 50:
         result = train_dropoff_model(rows)
-        print(f"[startup] modèle entraîné automatiquement: {result}")
+        print(f"[startup] model trained automatically: {result}")
     else:
-        print("[startup] pas assez de données pour entraîner, attends que le simulateur tourne un peu")
+        print("[startup] not enough data to train, wait for the simulator to run for a bit")
 
 
 @app.get("/health")

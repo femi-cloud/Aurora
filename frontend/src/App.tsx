@@ -6,6 +6,9 @@ import { RecommendationsPanel } from "./components/RecommendationsPanel";
 import { NaturalQuery } from "./components/NaturalQuery";
 import { DropoffPredictor } from "./components/DropoffPredictor";
 import { ThemeSwitch } from "./components/ThemeSwitch";
+import { MarqueeLights } from "./components/MarqueeLights";
+import { MarqueeTicker } from "./components/MarqueeTicker";
+
 
 const AURORA_LETTERS = [
   { char: "A", x: -18, y: -14, r: -14 },
@@ -49,42 +52,53 @@ function SectionHeading({
 function App() {
   return (
     <div className="min-h-screen bg-void text-ink px-6 py-8 lg:px-10 max-w-[1600px] mx-auto">
-      <div className="flex items-center justify-between mb-10 pb-6 border-b border-border">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-2xl font-bold tracking-tight font-display flex">
-            {AURORA_LETTERS.map((l, i) => (
-              <span
-                key={i}
-                className="inline-block"
-                style={
-                  {
-                    animation: "letter-settle 0.6s cubic-bezier(0.22,1,0.36,1) forwards",
-                    animationDelay: `${i * 200}ms`,
-                    opacity: 0,
-                    "--lx": `${l.x}px`,
-                    "--ly": `${l.y}px`,
-                    "--lr": `${l.r}deg`,
-                  } as React.CSSProperties
-                }
-              >
-                {l.char}
-              </span>
-            ))}
-          </h1>
-          <span className="text-xs font-semibold text-muted-foreground tracking-wide [font-variant-caps:all-small-caps]">
-            Control Room
-          </span>
-        </div>
+      <div className="mb-10 pb-6 border-b border-border">
+        <div
+          className="border rounded-2xl px-8 py-5 bg-surface/40"
+          style={{ animation: "border-breathe 7s ease-in-out infinite" }}
+        >
+          <MarqueeLights count={16} size="sm" />
 
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-2 text-xs font-semibold tracking-wide text-scope [font-variant-caps:all-small-caps]">
-            <span className="relative flex w-2 h-2">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-scope opacity-60 animate-ping" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-scope" />
-            </span>
-            Live
-          </span>
-          <ThemeSwitch />
+          <div className="flex items-center justify-between my-3">
+            <div className="flex items-baseline gap-3">
+              <h1
+                className="text-3xl font-bold tracking-tight font-display flex text-marquee"
+                style={{ animation: "neon-flicker 5s ease-in-out infinite" }}
+              >
+                {AURORA_LETTERS.map((l, i) => (
+                  <span
+                    key={i}
+                    className="inline-block"
+                    style={
+                      {
+                        animation: "letter-settle 0.6s cubic-bezier(0.22,1,0.36,1) forwards",
+                        animationDelay: `${i * 200}ms`,
+                        opacity: 0,
+                        "--lx": `${l.x}px`,
+                        "--ly": `${l.y}px`,
+                        "--lr": `${l.r}deg`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    {l.char}
+                  </span>
+                ))}
+              </h1>
+              <span className="text-xs font-semibold text-muted-foreground tracking-wide [font-variant-caps:all-small-caps]">
+                Control Room
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-2 text-sm text-marquee">
+                <MarqueeLights count={3} size="sm" />
+                Live
+              </span>
+              <ThemeSwitch />
+            </div>
+          </div>
+
+          <MarqueeTicker />
         </div>
       </div>
 

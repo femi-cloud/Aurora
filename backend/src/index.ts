@@ -38,8 +38,8 @@ app.get("/api/snapshot", async (req, res) => {
     const data = await getCurrentSnapshot(windowMinutes);
     res.json(data);
   } catch (err) {
-    console.error("[api/snapshot] erreur:", err);
-    res.status(500).json({ error: "Impossible de récupérer le snapshot" });
+    console.error("[api/snapshot] error:", err);
+    res.status(500).json({ error: "Unable to fetch snapshot" });
   }
 });
 
@@ -51,8 +51,8 @@ app.get("/api/timeline", async (req, res) => {
     const data = await getAudienceTimeline(titleId, region, windowMinutes);
     res.json(data);
   } catch (err) {
-    console.error("[api/timeline] erreur:", err);
-    res.status(500).json({ error: "Impossible de récupérer la timeline" });
+    console.error("[api/timeline] error:", err);
+    res.status(500).json({ error: "Unable to fetch timeline" });
   }
 });
 
@@ -63,8 +63,8 @@ app.get("/api/regional/:titleId", async (req, res) => {
     const data = await getRegionalBreakdown(titleId, windowMinutes);
     res.json(data);
   } catch (err) {
-    console.error("[api/regional] erreur:", err);
-    res.status(500).json({ error: "Impossible de récupérer le breakdown régional" });
+    console.error("[api/regional] error:", err);
+    res.status(500).json({ error: "Unable to fetch regional breakdown" });
   }
 });
 
@@ -74,8 +74,8 @@ app.get("/api/anomalies", async (req, res) => {
     const data = await getAnomaliesRelative(deviationThreshold);
     res.json(data);
   } catch (err) {
-    console.error("[api/anomalies] erreur:", err);
-    res.status(500).json({ error: "Impossible de récupérer les anomalies" });
+    console.error("[api/anomalies] error:", err);
+    res.status(500).json({ error: "Unable to fetch anomalies" });
   }
 });
 
@@ -91,8 +91,8 @@ app.get("/api/predict/dropoff", async (req, res) => {
     const data = await mlResponse.json();
     res.json(data);
   } catch (err) {
-    console.error("[api/predict/dropoff] erreur:", err);
-    res.status(500).json({ error: "Impossible de récupérer la prédiction" });
+    console.error("[api/predict/dropoff] error:", err);
+    res.status(500).json({ error: "Unable to fetch prediction" });
   }
 });
 
@@ -100,13 +100,13 @@ app.post("/api/query/natural", async (req, res) => {
   try {
     const { question } = req.body;
     if (!question || typeof question !== "string") {
-      return res.status(400).json({ error: "Le champ 'question' est requis" });
+      return res.status(400).json({ error: "The 'question' field is required" });
     }
     const result = await runNaturalQuery(question);
     res.json(result);
   } catch (err) {
-    console.error("[api/query/natural] erreur:", err);
-    res.status(500).json({ error: err instanceof Error ? err.message : "Erreur inconnue" });
+    console.error("[api/query/natural] error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
   }
 });
 

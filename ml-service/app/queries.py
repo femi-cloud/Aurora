@@ -2,8 +2,8 @@ from app.clickhouse_client import get_client
 
 def get_recent_minutely_stats(window_minutes: int = 30):
     """
-    Récupère les stats par (minute, titre, région) sur les X dernières minutes.
-    Chaque ligne = un point que l'isolation forest va pouvoir évaluer.
+    Fetches stats by (minute, title, region) over the last X minutes.
+    Each row = a point the isolation forest can evaluate.
     """
     client = get_client()
 
@@ -31,8 +31,8 @@ def get_recent_minutely_stats(window_minutes: int = 30):
 
 def get_raw_events(limit: int = 5000):
     """
-    Récupère les événements individuels bruts, pour entraîner XGBoost.
-    On prend les plus récents, en nombre limité pour ne pas surcharger l'entraînement.
+    Fetches raw individual events, to train XGBoost.
+    Takes the most recent ones, capped to avoid overloading training.
     """
     client = get_client()
 

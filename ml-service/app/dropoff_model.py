@@ -6,9 +6,9 @@ _feature_columns = None
 
 def train_dropoff_model(rows: list[dict]):
     """
-    Entraîne un modèle XGBoost à prédire drop_off à partir de title_id, region, device.
-    Le modèle entraîné est gardé en mémoire (variables globales du module) pour être
-    réutilisé par predict_dropoff_probability sans se ré-entraîner à chaque requête.
+    Trains an XGBoost model to predict drop_off from title_id, region, device.
+    The trained model is kept in memory (module-level globals) so it can be
+    reused by predict_dropoff_probability without retraining on every request.
     """
     global _model, _feature_columns
 
@@ -32,19 +32,19 @@ def train_dropoff_model(rows: list[dict]):
 
 def predict_dropoff_probability(title_id: str, region: str, device: str):
     """
-    Prédit la probabilité de drop-off pour une combinaison donnée.
+    Predicts the drop-off probability for a given combination.
     """
     if _model is None:
-        raise RuntimeError("Le modèle n'a pas encore été entraîné. Appelle /train d'abord.")
+        raise RuntimeError("The model hasn't been trained yet. Call /train first.")
 
     input_row = pd.DataFrame([{"title_id": title_id, "region": region, "device": device}])
     input_encoded = pd.get_dummies(input_row)
 
-    # Aligne les colonnes avec celles vues à l'entraînement
-    # (si une catégorie n'était pas dans l'entraînement, on la met à 0)
+    # Aligns columns with those seen during training
+    # (if a category wasn't in the training data, it's set to 0)
     input_encoded = input_encoded.reindex(columns=_feature_columns, fill_value=0)
 
-    probability = _model.predict_proba(input_encoded)[0][1]  # proba de la classe "drop_off = 1"
+    probability = _model.predict_proba(input_encoded)[0][1]  # probability of class "drop_off = 1"
 
     return {
         "title_id": title_id,

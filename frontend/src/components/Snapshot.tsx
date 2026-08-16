@@ -74,7 +74,7 @@ export function Snapshot() {
 
       {!loading && !error && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-      {pagedData.map((row, i) => {
+      {pagedData.map((row) => {
         const dropOffRate =
           row.viewer_count > 0
             ? Math.round((row.drop_off_count / row.viewer_count) * 100)

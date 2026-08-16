@@ -10,12 +10,12 @@ const CLICKHOUSE_DB = process.env.CLICKHOUSE_DB ?? "default";
 const CLICKHOUSE_USER = process.env.CLICKHOUSE_USER ?? "default";
 const CLICKHOUSE_PASSWORD = process.env.CLICKHOUSE_PASSWORD ?? "";
 
-const BATCH_INTERVAL_MS = 2000; // un batch toutes les 2s
+const BATCH_INTERVAL_MS = 2000; // one batch every 2s
 const MIN_EVENTS_PER_BATCH = 5;
 const MAX_EVENTS_PER_BATCH = 20;
-const ANOMALY_EVERY_N_BATCHES = 30; // ~1 anomalie par minute à 2s/batch
+const ANOMALY_EVERY_N_BATCHES = 30; // ~1 anomaly per minute at 2s/batch
 
-// Titres fictifs (id, nom, "santé" de base : plus haut = moins de drop-off)
+// Fictional titles (id, name, baseline "health": higher = less drop-off)
 const TITLES = [
   { id: "aurora-01", name: "Nightfall Protocol", baseline: 0.85 },
   { id: "aurora-02", name: "The Last Reel", baseline: 0.7 },
@@ -28,7 +28,7 @@ const TITLES = [
 const REGIONS = ["NA", "EU", "WA", "SA", "APAC"];
 const DEVICES = ["mobile", "desktop", "tv", "tablet"];
 
-const TITLE_RUNTIME_SECONDS = 5400; // ~90 min, pour borner seconds_watched
+const TITLE_RUNTIME_SECONDS = 5400; // ~90 min, to bound seconds_watched
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,9 +63,9 @@ function pickAnomalyType(): AnomalyType {
 }
 
 /**
- * Génère un événement pour un titre donné.
- * Si `forceAnomaly` est vrai, le taux de drop-off est anormalement élevé
- * pour simuler un incident détectable (ex: bug de sous-titres, buffering).
+ * Generates an event for a given title.
+ * If `forceAnomaly` is true, the drop-off rate is abnormally high
+ * to simulate a detectable incident (e.g. subtitle bug, buffering).
  */
 function generateEvent(
   title: (typeof TITLES)[number],
@@ -76,8 +76,8 @@ function generateEvent(
 
   let dropOffProbability = 1 - title.baseline;
   if (anomalyType === "dropoff") dropOffProbability = 0.9;
-  if (anomalyType === "spike") dropOffProbability = Math.max(0, (1 - title.baseline) - 0.4); // beaucoup moins de drop-off que d'habitude = signe d'engouement
-  // "regional" garde le dropOffProbability normal du titre, l'anomalie ici est le VOLUME (géré dans generateBatch), pas le dropoff
+  if (anomalyType === "spike") dropOffProbability = Math.max(0, (1 - title.baseline) - 0.4); // much less drop-off than usual = sign of strong engagement
+  // "regional" keeps the title's normal dropOffProbability, the anomaly here is the VOLUME (handled in generateBatch), not the dropoff
 
   const dropOff = Math.random() < dropOffProbability ? 1 : 0;
 
@@ -103,7 +103,7 @@ function generateBatch(batchIndex: number): AudienceEvent[] {
   const anomalyTitle = isAnomalyBatch && anomalyType !== "regional" ? randomChoice(TITLES) : null;
   const anomalyRegion = isAnomalyBatch && anomalyType === "regional" ? randomChoice(REGIONS) : null;
 
-  // "regional" génère plus d'events que la normale pour simuler un pic/creux de volume
+  // "regional" generates more events than usual to simulate a volume spike/dip
   const baseCount = randomInt(MIN_EVENTS_PER_BATCH, MAX_EVENTS_PER_BATCH);
   const count = anomalyType === "regional" ? baseCount * 3 : baseCount;
 
@@ -121,9 +121,9 @@ function generateBatch(batchIndex: number): AudienceEvent[] {
 
   if (isAnomalyBatch) {
     const label = anomalyType === "regional"
-      ? `pic de volume région ${anomalyRegion}`
-      : `${anomalyType} sur "${anomalyTitle?.name}" (${anomalyTitle?.id})`;
-    console.log(`[simulator] anomalie injectée: ${label}`);
+      ? `volume spike in region ${anomalyRegion}`
+      : `${anomalyType} on "${anomalyTitle?.name}" (${anomalyTitle?.id})`;
+    console.log(`[simulator] anomaly injected: ${label}`);
   }
 
   return events;
@@ -145,7 +145,7 @@ async function main() {
   let running = true;
 
   console.log(
-    `[simulator] démarrage — insertion toutes les ${BATCH_INTERVAL_MS}ms dans "${CLICKHOUSE_DB}.audience_events"`
+    `[simulator] starting — inserting every ${BATCH_INTERVAL_MS}ms into "${CLICKHOUSE_DB}.audience_events"`
   );
 
   let forcedAnomaly: { type: AnomalyType; titleId?: string; region?: string } | null = null;
@@ -153,14 +153,14 @@ async function main() {
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (input) => {
   const raw = input.toString().trim();
-  // format attendu: "dropoff aurora-03" ou "spike aurora-01" ou "regional EU"
+  // expected format: "dropoff aurora-03" or "spike aurora-01" or "regional EU"
   const [type, target] = raw.split(" ");
   if (type === "dropoff" || type === "spike") {
     forcedAnomaly = { type, titleId: target };
-        console.log(`[simulator] anomalie manuelle armée: ${type} sur ${target}`);
+        console.log(`[simulator] manual anomaly armed: ${type} on ${target}`);
   } else if (type === "regional") {
         forcedAnomaly = { type, region: target };
-        console.log(`[simulator] anomalie manuelle armée: regional sur ${target}`);
+        console.log(`[simulator] manual anomaly armed: regional on ${target}`);
   }
   });
 
@@ -180,16 +180,16 @@ async function main() {
             : Array.from({ length: randomInt(MIN_EVENTS_PER_BATCH, MAX_EVENTS_PER_BATCH) }, () =>
                 generateEvent(title, type)
                 );
-            forcedAnomaly = null; // on consomme le trigger une seule fois
+            forcedAnomaly = null; // consume the trigger once
         } else {
             events = generateBatch(batchIndex);
         }
 
         try {
             await client.insert({ table: "audience_events", values: events, format: "JSONEachRow" });
-            console.log(`[simulator] batch #${batchIndex} — ${events.length} événements insérés`);
+            console.log(`[simulator] batch #${batchIndex} — ${events.length} events inserted`);
         } catch (err) {
-            console.error("[simulator] échec d'insertion:", err);
+            console.error("[simulator] insertion failed:", err);
         }
 
         setTimeout(tick, BATCH_INTERVAL_MS);
@@ -198,7 +198,7 @@ async function main() {
   tick();
 
   const shutdown = async () => {
-    console.log("\n[simulator] arrêt en cours...");
+    console.log("\n[simulator] shutting down...");
     running = false;
     await client.close();
     process.exit(0);
@@ -209,6 +209,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[simulator] erreur fatale:", err);
+  console.error("[simulator] fatal error:", err);
   process.exit(1);
 });

@@ -3,15 +3,15 @@ import { generateDecision, type TitleSignal } from "./decisionEngine.js";
 import { broadcastDecision, onClientAction } from "../ws/server.js";
 import type { AgentDecision } from "../../../packages/shared/src/types.js";
 
-// Dans ta fourchette 30-60s — 45s par défaut, ajustable sans recompiler.
+// Within the 30-60s range — 45s default, adjustable without recompiling.
 const CYCLE_INTERVAL_MS = Number(process.env.ORCHESTRATOR_INTERVAL_MS ?? 45000);
 
-// URL du ml-service Python (FastAPI/uvicorn). À ajouter dans .env.example —
-// port par défaut d'uvicorn, à corriger si vous le lancez sur un autre port.
+// Python ml-service URL (FastAPI/uvicorn). Add to .env.example —
+// uvicorn's default port, adjust if you run it on a different one.
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL ?? "http://localhost:8000";
 
-// Sous ce seuil, on ne dérange pas Gemini : sans filtre, chaque couple
-// titre/région produirait un "monitor" à chaque cycle.
+// Below this threshold, we don't bother Gemini: without a filter, every
+// title/region pair would produce a "monitor" every cycle.
 const ANOMALY_SCORE_THRESHOLD = Number(process.env.ANOMALY_SCORE_THRESHOLD ?? 1.0);
 
 interface MlAnomalyRow {
@@ -30,12 +30,12 @@ interface MlDropoffPrediction {
   drop_off_probability: number;
 }
 
-// Couples (titleId:region) avec une décision Gemini en cours — évite qu'un
-// appel lent soit redéclenché par le cycle suivant.
+// (titleId:region) pairs with a Gemini decision currently in flight — prevents
+// a slow call from being re-triggered by the next cycle.
 const inFlight = new Set<string>();
 
-// Décisions générées, gardées en mémoire pour pouvoir matcher un accept/reject
-// du frontend et rediffuser le nouveau statut.
+// Generated decisions, kept in memory so we can match an accept/reject
+// from the frontend and rebroadcast the updated status.
 const decisions = new Map<string, AgentDecision>();
 
 function keyFor(titleId: string, region: string): string {
@@ -48,8 +48,8 @@ async function fetchMlAnomalies(): Promise<MlAnomalyRow[]> {
     if (!res.ok) throw new Error(`ml-service /anomalies ${res.status}`);
     return (await res.json()) as MlAnomalyRow[];
   } catch (err) {
-    console.error("[orchestrator] ml-service /anomalies indisponible:", err);
-    return []; // dégrade gracieusement, le cycle continue avec le reste des signaux
+    console.error("[orchestrator] ml-service /anomalies unavailable:", err);
+    return []; // degrades gracefully, the cycle continues with the remaining signals
   }
 }
 
@@ -58,18 +58,18 @@ async function fetchDropoffPrediction(
   region: string
 ): Promise<number | undefined> {
   try {
-    // "device" est requis par le modèle mais on n'a pas cette dimension au
-    // niveau title+region. On passe "unknown" : le one-hot du modèle ne
-    // reconnaît pas cette catégorie et l'ignore, la prédiction se base donc
-    // sur title_id/region seuls — moins précis qu'avec le vrai device, mais
-    // suffisant pour prioriser.
+    // "device" is required by the model but we don't have that dimension at
+    // the title+region level. We pass "unknown": the model's one-hot doesn't
+    // recognize this category and ignores it, so the prediction is based on
+    // title_id/region alone — less precise than with the real device, but
+    // good enough to prioritize.
     const params = new URLSearchParams({ title_id: titleId, region, device: "unknown" });
     const res = await fetch(`${ML_SERVICE_URL}/predict/dropoff?${params}`);
     if (!res.ok) throw new Error(`ml-service /predict/dropoff ${res.status}`);
     const data = (await res.json()) as MlDropoffPrediction;
     return data.drop_off_probability;
   } catch (err) {
-    console.error(`[orchestrator] prédiction dropoff indisponible pour ${titleId}/${region}:`, err);
+    console.error(`[orchestrator] dropoff prediction unavailable for ${titleId}/${region}:`, err);
     return undefined;
   }
 }
@@ -90,11 +90,11 @@ async function buildSignals(): Promise<TitleSignal[]> {
 
   for (const row of snapshot as any[]) {
     const { title_id, region, viewer_count, drop_off_count, avg_seconds_watched } = row;
-    if (!viewer_count) continue; // pas de vues = rien à évaluer
+    if (!viewer_count) continue; // no views = nothing to evaluate
 
     const k = keyFor(title_id, region);
-    // Score composite : 0.5 par détecteur qui flag ce couple titre/région.
-    // 1.0 si les deux sont d'accord, 0 si aucun.
+    // Composite score: 0.5 per detector that flags this title/region pair.
+    // 1.0 if both agree, 0 if neither does.
     let anomalyScore = 0;
     if (relativeFlagged.has(k)) anomalyScore += 0.5;
     if (ifFlagged.has(k)) anomalyScore += 0.5;
@@ -117,13 +117,13 @@ async function runCycle(): Promise<void> {
   try {
     signals = await buildSignals();
   } catch (err) {
-    console.error("[orchestrator] échec de construction des signaux, cycle sauté:", err);
+    console.error("[orchestrator] failed to build signals, skipping cycle:", err);
     return;
   }
 
   for (const signal of signals) {
     const k = keyFor(signal.titleId, signal.region);
-    if (inFlight.has(k)) continue; // décision déjà en cours pour ce couple
+    if (inFlight.has(k)) continue; // decision already in progress for this pair
 
     if ((signal.anomalyScore ?? 0) < ANOMALY_SCORE_THRESHOLD) continue;
 
@@ -135,7 +135,7 @@ async function runCycle(): Promise<void> {
         decisions.set(decision.id, decision);
         broadcastDecision(decision);
       } catch (err) {
-        console.error(`[orchestrator] échec de génération de décision pour ${k}:`, err);
+        console.error(`[orchestrator] failed to generate decision for ${k}:`, err);
       } finally {
         inFlight.delete(k);
       }
@@ -144,22 +144,22 @@ async function runCycle(): Promise<void> {
 }
 
 /**
- * Démarre la boucle d'orchestration et branche accept/reject du frontend
- * sur le store de décisions en mémoire. À appeler une fois depuis index.ts,
- * après attachWebSocketServer().
+ * Starts the orchestration loop and wires the frontend's accept/reject
+ * to the in-memory decision store. Call once from index.ts, after
+ * attachWebSocketServer().
  */
 export function startOrchestrator(): void {
   onClientAction(({ decisionId, action }) => {
     const decision = decisions.get(decisionId);
     if (!decision) {
-      console.warn(`[orchestrator] action reçue pour une décision inconnue: ${decisionId}`);
+      console.warn(`[orchestrator] action received for unknown decision: ${decisionId}`);
       return;
     }
     decision.status = action === "accept" ? "accepted" : "rejected";
-    broadcastDecision(decision); // rediffuse le nouveau statut à tous les clients
+    broadcastDecision(decision); // rebroadcasts the new status to all clients
   });
 
-  console.log(`[orchestrator] démarré — cycle toutes les ${CYCLE_INTERVAL_MS}ms`);
-  runCycle(); // premier cycle immédiat, pas d'attente du premier interval
+  console.log(`[orchestrator] started — cycle every ${CYCLE_INTERVAL_MS}ms`);
+  runCycle(); // immediate first cycle, no waiting for the first interval
   setInterval(runCycle, CYCLE_INTERVAL_MS);
 }

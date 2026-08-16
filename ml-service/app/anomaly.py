@@ -3,14 +3,14 @@ from sklearn.ensemble import IsolationForest
 
 def detect_anomalies(rows: list[dict], contamination: float = 0.05):
     """
-    Prend la liste de points (minute, title_id, region, viewers, dropoffs, avg_watched)
-    et retourne les points jugés anormaux par l'isolation forest.
+    Takes the list of points (minute, title_id, region, viewers, dropoffs, avg_watched)
+    and returns the points flagged as abnormal by the isolation forest.
 
-    contamination = proportion attendue d'anomalies dans les données (0.05 = 5%).
-    C'est un réglage approximatif, pas une science exacte.
+    contamination = expected proportion of anomalies in the data (0.05 = 5%).
+    This is an approximate setting, not an exact science.
     """
     if len(rows) < 10:
-        # Pas assez de points pour qu'un modèle statistique ait du sens
+        # Not enough points for a statistical model to make sense
         return []
 
     df = pd.DataFrame(rows)
@@ -20,7 +20,7 @@ def detect_anomalies(rows: list[dict], contamination: float = 0.05):
 
     model = IsolationForest(contamination=contamination, random_state=42)
     df["anomaly_score"] = model.fit_predict(features)
-    # fit_predict renvoie -1 pour une anomalie, 1 pour un point normal
+    # fit_predict returns -1 for an anomaly, 1 for a normal point
 
     anomalies = df[df["anomaly_score"] == -1]
 

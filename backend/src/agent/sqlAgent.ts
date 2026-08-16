@@ -1,28 +1,28 @@
 import { clickhouse } from "../clickhouse/client.js";
 import { askGemini, askGeminiJSON } from "./gemini.js";
 
-// Schéma décrit en langage naturel pour guider la génération SQL.
-// Ne couvre QUE la table agrégée en lecture — jamais audience_events brute,
-// pour limiter la surface et garder des requêtes rapides.
+// Schema described in natural language to guide SQL generation.
+// Only covers the aggregated read table — never raw audience_events,
+// to limit scope and keep queries fast.
 const SCHEMA_DESCRIPTION = `
-Table ClickHouse: audience_stats_agg (AggregatingMergeTree)
-Colonnes:
-  - minute (DateTime) — timestamp arrondi à la minute
-  - title_id (String) — ex: "aurora-01" à "aurora-06"
-  - title_name (String) — ex: "Nightfall Protocol"
-  - region (String) — une de: NA, EU, WA, SA, APAC
-  - viewer_count (AggregateFunction(count, UInt8)) — utiliser countMerge(viewer_count)
-  - drop_off_count (AggregateFunction(sum, UInt8)) — utiliser sumMerge(drop_off_count)
-  - avg_seconds_watched (AggregateFunction(avg, UInt32)) — utiliser avgMerge(avg_seconds_watched)
+ClickHouse table: audience_stats_agg (AggregatingMergeTree)
+Columns:
+  - minute (DateTime) — timestamp rounded to the minute
+  - title_id (String) — e.g. "aurora-01" to "aurora-06"
+  - title_name (String) — e.g. "Nightfall Protocol"
+  - region (String) — one of: NA, EU, WA, SA, APAC
+  - viewer_count (AggregateFunction(count, UInt8)) — use countMerge(viewer_count)
+  - drop_off_count (AggregateFunction(sum, UInt8)) — use sumMerge(drop_off_count)
+  - avg_seconds_watched (AggregateFunction(avg, UInt32)) — use avgMerge(avg_seconds_watched)
 
-Règles impératives:
-  - Les colonnes AggregateFunction DOIVENT être lues avec leur fonction *Merge correspondante
-    (countMerge, sumMerge, avgMerge), jamais utilisées brutes.
-  - Ne jamais réutiliser un nom de colonne source comme alias dans le même SELECT
-    (ex: ne pas faire "sumMerge(drop_off_count) AS drop_off_count").
-  - Toujours GROUP BY les colonnes non agrégées utilisées dans le SELECT.
-  - Limiter les résultats avec LIMIT 50 sauf si la question implique un agrégat unique.
-  - Utiliser des paramètres relatifs au temps du type "now() - INTERVAL N MINUTE".
+Mandatory rules:
+  - AggregateFunction columns MUST be read with their corresponding *Merge function
+    (countMerge, sumMerge, avgMerge), never used raw.
+  - Never reuse a source column name as an alias in the same SELECT
+    (e.g. don't do "sumMerge(drop_off_count) AS drop_off_count").
+  - Always GROUP BY the non-aggregated columns used in the SELECT.
+  - Limit results with LIMIT 50 unless the question implies a single aggregate.
+  - Use time-relative parameters like "now() - INTERVAL N MINUTE".
 `;
 
 interface SqlGenerationResult {
@@ -37,47 +37,47 @@ const FORBIDDEN_KEYWORDS = [
 ];
 
 /**
- * Rejette tout ce qui n'est pas un SELECT en lecture seule.
- * Vérifie aussi qu'aucun mot-clé destructeur ne se cache dans une sous-requête
- * ou un commentaire (le LLM ne devrait jamais en générer, mais on ne fait pas confiance).
+ * Rejects anything that isn't a read-only SELECT.
+ * Also checks that no destructive keyword is hiding in a subquery
+ * or comment (the LLM should never generate one, but we don't trust it).
  */
 function validateReadOnlySql(sql: string): void {
   const trimmed = sql.trim().replace(/;+\s*$/, "");
   const upper = trimmed.toUpperCase();
 
   if (!upper.startsWith("SELECT") && !upper.startsWith("WITH")) {
-    throw new Error("Requête rejetée: doit commencer par SELECT ou WITH");
+    throw new Error("Query rejected: must start with SELECT or WITH");
   }
 
   for (const keyword of FORBIDDEN_KEYWORDS) {
-    // \b évite de bloquer un mot qui contiendrait le keyword par hasard (ex: "created_at")
+    // \b avoids blocking a word that happens to contain the keyword (e.g. "created_at")
     const pattern = new RegExp(`\\b${keyword}\\b`, "i");
     if (pattern.test(upper)) {
-      throw new Error(`Requête rejetée: mot-clé interdit détecté (${keyword})`);
+      throw new Error(`Query rejected: forbidden keyword detected (${keyword})`);
     }
   }
 
   if (trimmed.includes(";")) {
-    throw new Error("Requête rejetée: plusieurs instructions détectées");
+    throw new Error("Query rejected: multiple statements detected");
   }
 }
 
 async function generateSql(question: string): Promise<SqlGenerationResult> {
   const prompt = `
-Tu es un générateur de requêtes ClickHouse en lecture seule pour un dashboard d'audience streaming.
+You are a read-only ClickHouse query generator for a streaming audience dashboard.
 
 ${SCHEMA_DESCRIPTION}
 
-Question de l'utilisateur: "${question}"
+User question: "${question}"
 
-Génère UNE seule requête SQL ClickHouse valide qui répond à cette question, en respectant strictement les règles ci-dessus.
+Generate ONE single valid ClickHouse SQL query that answers this question, strictly following the rules above.
 `;
 
   const schema = {
     type: "object",
     properties: {
-      sql: { type: "string", description: "La requête SQL ClickHouse, sans point-virgule final" },
-      explanation: { type: "string", description: "Explication courte en français de ce que fait la requête" },
+      sql: { type: "string", description: "The ClickHouse SQL query, without a trailing semicolon" },
+      explanation: { type: "string", description: "Short explanation in English of what the query does" },
     },
     required: ["sql", "explanation"],
   };
@@ -87,13 +87,13 @@ Génère UNE seule requête SQL ClickHouse valide qui répond à cette question,
 
 async function interpretResults(question: string, rows: unknown[]): Promise<string> {
   const prompt = `
-L'utilisateur a demandé: "${question}"
+The user asked: "${question}"
 
-Voici le résultat de la requête ClickHouse (JSON):
+Here is the result of the ClickHouse query (JSON):
 ${JSON.stringify(rows).slice(0, 4000)}
 
-Réponds en français, en une ou deux phrases claires, directement à la question posée.
-Si le résultat est vide, dis-le simplement (pas de donnée disponible pour cette période/ce filtre).
+Answer in English, in one or two clear sentences, directly addressing the question asked.
+If the result is empty, say so simply (no data available for this period/filter).
 `;
 
   return askGemini(prompt);
@@ -108,8 +108,8 @@ export interface NaturalQueryResult {
 }
 
 /**
- * Point d'entrée principal: question en langage naturel -> SQL généré,
- * validé, exécuté, résultat interprété.
+ * Main entry point: natural language question -> SQL generated,
+ * validated, executed, result interpreted.
  */
 export async function runNaturalQuery(question: string): Promise<NaturalQueryResult> {
   const { sql, explanation } = await generateSql(question);

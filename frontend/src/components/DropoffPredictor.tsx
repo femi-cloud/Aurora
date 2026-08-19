@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { API_BASE_URL } from "../api/client.ts";
+
 
 import {
   Select,
@@ -43,7 +45,7 @@ export function DropoffPredictor() {
 
     try {
       const params = new URLSearchParams({ titleId, region, device });
-      const res = await fetch(`http://localhost:3000/api/predict/dropoff?${params}`);
+      const res = await fetch(`${API_BASE_URL}/api/predict/dropoff?${params}`);
       if (!res.ok) throw new Error(`Erreur ${res.status}`);
       const data: PredictionResult = await res.json();
       setResult(data);

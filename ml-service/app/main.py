@@ -8,13 +8,15 @@ app = FastAPI(title="Aurora ML Service")
 
 @app.on_event("startup")
 def startup_event():
-    rows = get_raw_events(5000)
-    if len(rows) >= 50:
-        result = train_dropoff_model(rows)
-        print(f"[startup] model trained automatically: {result}")
-    else:
-        print("[startup] not enough data to train, wait for the simulator to run for a bit")
-
+    try:
+        rows = get_raw_events(5000)
+        if len(rows) >= 50:
+            result = train_dropoff_model(rows)
+            print(f"[startup] model trained automatically: {result}")
+        else:
+            print("[startup] not enough data to train, wait for the simulator to run for a bit")
+    except Exception as e:
+        print(f"[startup] skipping auto-train, ClickHouse not ready or unreachable: {e}")
 
 @app.get("/health")
 def health_check():

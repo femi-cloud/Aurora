@@ -10,20 +10,42 @@ const CLICKHOUSE_DB = process.env.CLICKHOUSE_DB ?? "default";
 const CLICKHOUSE_USER = process.env.CLICKHOUSE_USER ?? "default";
 const CLICKHOUSE_PASSWORD = process.env.CLICKHOUSE_PASSWORD ?? "";
 
-const BATCH_INTERVAL_MS = 2000; // one batch every 2s
+const BATCH_INTERVAL_MS = 10000; // one batch every 10s
 const MIN_EVENTS_PER_BATCH = 5;
 const MAX_EVENTS_PER_BATCH = 20;
 const ANOMALY_EVERY_N_BATCHES = 30; // ~1 anomaly per minute at 2s/batch
 
-// Fictional titles (id, name, baseline "health": higher = less drop-off)
-const TITLES = [
-  { id: "aurora-01", name: "Nightfall Protocol", baseline: 0.85 },
-  { id: "aurora-02", name: "The Last Reel", baseline: 0.7 },
-  { id: "aurora-03", name: "Glass Horizon", baseline: 0.6 },
-  { id: "aurora-04", name: "Static Bloom", baseline: 0.75 },
-  { id: "aurora-05", name: "Echo Chamber", baseline: 0.5 },
-  { id: "aurora-06", name: "Paper Moons", baseline: 0.65 },
+const TMDB_API_KEY = process.env.TMDB_API_KEY ?? "";
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
+
+// Pinned fictional title_id -> real TMDB movie, kept stable so the
+// ml-service one-hot encoding never breaks. baseline stays the
+// simulator's own tuning knob, unrelated to the real movie.
+const TITLE_SEEDS = [
+  { id: "aurora-01", tmdbId: 27205, baseline: 0.85, fallbackName: "Nightfall Protocol" },
+  { id: "aurora-02", tmdbId: 496243, baseline: 0.7, fallbackName: "The Last Reel" },
+  { id: "aurora-03", tmdbId: 129, baseline: 0.6, fallbackName: "Glass Horizon" },
+  { id: "aurora-04", tmdbId: 76341, baseline: 0.75, fallbackName: "Static Bloom" },
+  { id: "aurora-05", tmdbId: 419430, baseline: 0.5, fallbackName: "Echo Chamber" },
+  { id: "aurora-06", tmdbId: 313369, baseline: 0.65, fallbackName: "Paper Moons" },
 ];
+
+interface Title {
+  id: string;
+  name: string;
+  baseline: number;
+  posterUrl: string | null;
+}
+
+// Populated at startup by fetchTitleMetadata(). Starts with the
+// fictional fallback names so the simulator can still run if the
+// TMDB fetch fails or no key is set.
+let TITLES: Title[] = TITLE_SEEDS.map((seed) => ({
+  id: seed.id,
+  name: seed.fallbackName,
+  baseline: seed.baseline,
+  posterUrl: null,
+}));
 
 const REGIONS = ["NA", "EU", "WA", "SA", "APAC"];
 const DEVICES = ["mobile", "desktop", "tv", "tablet"];
@@ -33,6 +55,49 @@ const TITLE_RUNTIME_SECONDS = 5400; // ~90 min, to bound seconds_watched
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Fetches real title + poster from TMDB for each pinned title_id.
+ * Runs once at startup. Falls back silently to the fictional name
+ * for any title where the fetch fails, so the simulator never
+ * blocks on a network issue.
+ */
+async function fetchTitleMetadata(): Promise<void> {
+  if (!TMDB_API_KEY) {
+    console.warn("[simulator] TMDB_API_KEY not set — using fictional titles");
+    return;
+  }
+
+  const results = await Promise.all(
+    TITLE_SEEDS.map(async (seed) => {
+      try {
+        const res = await fetch(
+          `https://api.themoviedb.org/3/movie/${seed.tmdbId}?api_key=${TMDB_API_KEY}`
+        );
+        if (!res.ok) throw new Error(`TMDB responded ${res.status}`);
+        const data = (await res.json()) as { title: string; poster_path: string | null };
+
+        return {
+          id: seed.id,
+          name: data.title,
+          baseline: seed.baseline,
+          posterUrl: data.poster_path ? `${TMDB_IMAGE_BASE}${data.poster_path}` : null,
+        };
+      } catch (err) {
+        console.error(`[simulator] TMDB fetch failed for ${seed.id} (tmdbId ${seed.tmdbId}):`, err);
+        return {
+          id: seed.id,
+          name: seed.fallbackName,
+          baseline: seed.baseline,
+          posterUrl: null,
+        };
+      }
+    })
+  );
+
+  TITLES = results;
+  console.log("[simulator] TMDB metadata loaded:", TITLES.map((t) => t.name).join(", "));
+}
 
 function randomChoice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -46,6 +111,7 @@ interface AudienceEvent {
   event_time: string;
   title_id: string;
   title_name: string; 
+  poster_url: string | null;
   region: string;
   seconds_watched: number;
   drop_off: 0 | 1;
@@ -89,6 +155,7 @@ function generateEvent(
     event_time: new Date().toISOString().replace("T", " ").slice(0, 19),
     title_id: title.id,
     title_name: title.name,
+    poster_url: title.posterUrl,
     region: forcedRegion ?? randomChoice(REGIONS),
     seconds_watched: secondsWatched,
     drop_off: dropOff,
@@ -140,6 +207,8 @@ async function main() {
     username: CLICKHOUSE_USER,
     password: CLICKHOUSE_PASSWORD,
   });
+
+  await fetchTitleMetadata();
 
   let batchIndex = 0;
   let running = true;

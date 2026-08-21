@@ -32,4 +32,5 @@ export interface AnomalyRow {
   current_rate: number;
   baseline_rate: number;
   deviation: number;
+  poster_url: string | null;
 }

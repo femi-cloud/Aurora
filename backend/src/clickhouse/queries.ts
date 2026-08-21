@@ -115,7 +115,13 @@ export async function getAnomaliesRelative(
       r.viewers AS viewer_count,
       r.current_rate,
       b.avg_drop_off_rate AS baseline_rate,
-      r.current_rate - b.avg_drop_off_rate AS deviation
+      r.current_rate - b.avg_drop_off_rate AS deviation,
+      (
+        SELECT any(poster_url)
+        FROM audience_events ae
+        WHERE ae.title_id = r.title_id
+          AND ae.poster_url IS NOT NULL
+      ) AS poster_url
     FROM recent r
     INNER JOIN baseline b ON r.title_id = b.title_id AND r.region = b.region
     WHERE r.viewers >= 3

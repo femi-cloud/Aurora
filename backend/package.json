@@ -6,7 +6,8 @@
   "main": "dist/backend/src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsx watch src/index.ts",
+    "dev": "concurrently -n server,simulator -c blue,yellow \"tsx watch src/index.ts\" \"npm run simulate\"",
+    "simulate": "tsx src/simulator/eventGenerator.ts",
     "build": "tsc",
     "start": "node dist/backend/src/index.js"
   },
@@ -27,6 +28,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
     "@types/ws": "^8.18.1",
+    "concurrently": "^9.1.0",
     "tsx": "^4.23.10",
     "typescript": "^7.0.2"
   }

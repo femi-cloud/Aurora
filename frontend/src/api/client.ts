@@ -1,3 +1,5 @@
+import type { SnapshotRow, TimelineRow, RegionalRow, AnomalyRow, TitleMetadataRow } from "../types/audience";
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 async function fetchJson<T>(path: string): Promise<T> {
@@ -7,8 +9,6 @@ async function fetchJson<T>(path: string): Promise<T> {
   }
   return response.json();
 }
-
-import type { SnapshotRow, TimelineRow, RegionalRow, AnomalyRow } from "../types/audience";
 
 export function getSnapshot(windowMinutes?: number) {
   const query = windowMinutes ? `?windowMinutes=${windowMinutes}` : "";
@@ -32,4 +32,8 @@ export function getRegionalBreakdown(titleId: string, windowMinutes?: number) {
 export function getAnomalies(deviationThreshold?: number) {
   const query = deviationThreshold ? `?deviationThreshold=${deviationThreshold}` : "";
   return fetchJson<AnomalyRow[]>(`/api/anomalies${query}`);
+}
+
+export function getTitles() {
+  return fetchJson<TitleMetadataRow[]>("/api/titles");
 }

@@ -11,6 +11,7 @@ import {
   getAudienceTimeline,
   getRegionalBreakdown,
   getAnomaliesRelative,
+  getTitleMetadata,
 } from "./clickhouse/queries";
 
 dotenv.config();
@@ -76,6 +77,16 @@ app.get("/api/anomalies", async (req, res) => {
   } catch (err) {
     console.error("[api/anomalies] error:", err);
     res.status(500).json({ error: "Unable to fetch anomalies" });
+  }
+});
+
+app.get("/api/titles", async (req, res) => {
+  try {
+    const data = await getTitleMetadata();
+    res.json(data);
+  } catch (err) {
+    console.error("[api/titles] error:", err);
+    res.status(500).json({ error: "Unable to fetch title metadata" });
   }
 });
 

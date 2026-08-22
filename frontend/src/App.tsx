@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Snapshot } from "./components/Snapshot";
 import { Timeline } from "./components/Timeline";
 import { RegionalBreakdown } from "./components/RegionalBreakdown";
@@ -8,6 +9,7 @@ import { DropoffPredictor } from "./components/DropoffPredictor";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { MarqueeLights } from "./components/MarqueeLights";
 import { MarqueeTicker } from "./components/MarqueeTicker";
+import { Scene3D } from "./components/Scene3D";
 
 
 const AURORA_LETTERS = [
@@ -50,6 +52,8 @@ function SectionHeading({
 }
 
 function App() {
+  const [mode, setMode] = useState<"2d" | "3d">("2d");
+
   return (
     <div className="min-h-screen bg-void text-ink px-6 py-8 lg:px-10 max-w-[1600px] mx-auto">
       <div className="mb-10 pb-6 border-b border-border">
@@ -94,6 +98,12 @@ function App() {
                 <MarqueeLights count={3} size="sm" />
                 Live
               </span>
+              <button
+                onClick={() => setMode(mode === "2d" ? "3d" : "2d")}
+                className="text-xs font-mono px-3 py-1.5 rounded-lg border border-border bg-surface hover:border-marquee/50 transition-colors text-ink"
+              >
+                {mode === "2d" ? "Switch to 3D" : "Switch to 2D"}
+              </button>
               <ThemeSwitch />
             </div>
           </div>
@@ -102,38 +112,44 @@ function App() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-        <section>
-          <SectionHeading index={1} accent="scope">Signal</SectionHeading>
-          <Timeline />
-          <RegionalBreakdown />
-        </section>
+      {mode === "3d" ? (
+        <Scene3D />
+      ) : (
+        <>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
+          <section>
+            <SectionHeading index={1} accent="scope">Signal</SectionHeading>
+            <Timeline />
+            <RegionalBreakdown />
+          </section>
 
-        <section>
-          <SectionHeading index={2} accent="tally">Detection</SectionHeading>
-          <Anomalies />
-        </section>
-      </div>
-
-      <div className="border-t border-border pt-8 mb-10">
-        <SectionHeading index={3} accent="marquee">Decision</SectionHeading>
-        <div className="max-h-125 overflow-y-auto custom-scrollbar pr-2">
-          <RecommendationsPanel />
+          <section>
+            <SectionHeading index={2} accent="tally">Detection</SectionHeading>
+            <Anomalies />
+          </section>
         </div>
-      </div>
 
-      <div className="border-t border-border pt-8 mb-10">
-        <SectionHeading index={4} accent="ink">Explore</SectionHeading>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <NaturalQuery />
-          <DropoffPredictor />
+        <div className="border-t border-border pt-8 mb-10">
+          <SectionHeading index={3} accent="marquee">Decision</SectionHeading>
+          <div className="max-h-125 overflow-y-auto custom-scrollbar pr-2">
+            <RecommendationsPanel />
+          </div>
         </div>
-      </div>
 
-      <div className="border-t border-border pt-8">
-        <SectionHeading index={5} accent="ink">Detail</SectionHeading>
-        <Snapshot />
-      </div>
+        <div className="border-t border-border pt-8 mb-10">
+          <SectionHeading index={4} accent="ink">Explore</SectionHeading>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <NaturalQuery />
+            <DropoffPredictor />
+          </div>
+        </div>
+
+        <div className="border-t border-border pt-8">
+          <SectionHeading index={5} accent="ink">Detail</SectionHeading>
+          <Snapshot />
+        </div>
+      </>
+      )}
     </div>
   );
 }

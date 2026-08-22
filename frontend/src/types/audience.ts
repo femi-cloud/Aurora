@@ -34,3 +34,9 @@ export interface AnomalyRow {
   deviation: number;
   poster_url: string | null;
 }
+
+export interface TitleMetadataRow {
+  title_id: string;
+  title_name: string;
+  poster_url: string | null;
+}

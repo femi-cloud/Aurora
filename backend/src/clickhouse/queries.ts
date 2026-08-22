@@ -137,3 +137,22 @@ export async function getAnomaliesRelative(
 
   return resultSet.json();
 }
+
+export async function getTitleMetadata() {
+  const query = `
+    SELECT
+      title_id,
+      title_name,
+      any(poster_url) AS poster_url
+    FROM audience_events
+    GROUP BY title_id, title_name
+    ORDER BY title_id
+  `;
+
+  const resultSet = await clickhouse.query({
+    query,
+    format: "JSONEachRow",
+  });
+
+  return resultSet.json();
+}

@@ -9,7 +9,7 @@
     "dev": "concurrently -n server,simulator -c blue,yellow \"tsx watch src/index.ts\" \"npm run simulate\"",
     "simulate": "tsx src/simulator/eventGenerator.ts",
     "build": "tsc",
-    "start": "node dist/backend/src/index.js"
+    "start": "concurrently -n server,simulator -c blue,yellow \"node dist/backend/src/index.js\" \"node dist/backend/src/simulator/eventGenerator.js\""
   },
   "keywords": [],
   "author": "",
@@ -17,6 +17,7 @@
   "dependencies": {
     "@clickhouse/client": "^1.23.1",
     "@google/genai": "^2.16.0",
+    "concurrently": "^9.1.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -28,7 +29,6 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.2",
     "@types/ws": "^8.18.1",
-    "concurrently": "^9.1.0",
     "tsx": "^4.23.10",
     "typescript": "^7.0.2"
   }

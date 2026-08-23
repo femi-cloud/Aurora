@@ -53,6 +53,18 @@ function SectionHeading({
 
 function App() {
   const [mode, setMode] = useState<"2d" | "3d">("2d");
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [overlayOpacity, setOverlayOpacity] = useState(0);
+
+  function handleModeToggle() {
+    setIsTransitioning(true);
+    setOverlayOpacity(1);
+    setTimeout(() => {
+      setMode((m) => (m === "2d" ? "3d" : "2d"));
+      setOverlayOpacity(0);
+      setTimeout(() => setIsTransitioning(false), 300);
+    }, 300);
+  }
 
   return (
     <div className="min-h-screen bg-void text-ink px-6 py-8 lg:px-10 max-w-[1600px] mx-auto">
@@ -99,10 +111,28 @@ function App() {
                 Live
               </span>
               <button
-                onClick={() => setMode(mode === "2d" ? "3d" : "2d")}
-                className="text-xs font-mono px-3 py-1.5 rounded-lg border border-border bg-surface hover:border-marquee/50 transition-colors text-ink"
+                onClick={handleModeToggle}
+                className="group flex items-center gap-2.5"
               >
-                {mode === "2d" ? "Switch to 3D" : "Switch to 2D"}
+                <span className="text-xs font-mono text-muted-foreground group-hover:text-marquee transition-colors [font-variant-caps:all-small-caps]">
+                  {mode === "2d" ? "Enter the Screening Room" : "Exit to Dashboard"}
+                </span>
+                <span
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full border border-border transition-colors duration-300 ${
+                    mode === "3d" ? "bg-marquee/20" : "bg-surface"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 rounded-full shadow-md transition-transform duration-300 ${
+                      mode === "3d" ? "translate-x-6 bg-marquee" : "translate-x-1 bg-muted-foreground"
+                    }`}
+                    style={
+                      mode === "3d"
+                        ? { animation: "neon-flicker 3s ease-in-out infinite" }
+                        : undefined
+                    }
+                  />
+                </span>
               </button>
               <ThemeSwitch />
             </div>
@@ -149,6 +179,12 @@ function App() {
           <Snapshot />
         </div>
       </>
+      )}
+      {isTransitioning && (
+        <div
+          className="fixed inset-0 z-50 bg-void pointer-events-none transition-opacity duration-300"
+          style={{ opacity: overlayOpacity }}
+        />
       )}
     </div>
   );

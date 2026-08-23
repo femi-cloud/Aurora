@@ -1,10 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import type { PerspectiveCamera as PerspectiveCameraType } from "three";
 import { Vector3 } from "three";
 import * as THREE from "three";
-import { OrbitControls, Html, Sparkles } from "@react-three/drei";
-import { Fog } from "three";
+import { OrbitControls, Html, Sparkles, Billboard, Stars } from "@react-three/drei";
 import { getSnapshot, getAnomalies, getTitles } from "../api/client";
 import { useAgentSocket } from "../hooks/useAgentSocket";
 
@@ -30,7 +28,7 @@ const VIEWER_COUNT_FOR_MAX_RADIUS = 200; // tuning knob, adjust after watching r
 
 function titlePosition(index: number, total: number): [number, number, number] {
   const angle = (index / total) * Math.PI * 2;
-  const radius = 5;
+  const radius = 5.5;
   return [Math.cos(angle) * radius, 0, Math.sin(angle) * radius];
 }
 
@@ -113,6 +111,28 @@ function AgentOrb({
   );
 }
 
+// A soft volumetric-looking light beam, movie-set style: a thin translucent
+// cone with additive blending, angled down toward the platform.
+function LightBeam({ position, rotation, color = "#8ba3ff" }: {
+  position: [number, number, number];
+  rotation: [number, number, number];
+  color?: string;
+}) {
+  return (
+    <mesh position={position} rotation={rotation}>
+      <coneGeometry args={[2.2, 10, 32, 1, true]} />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        opacity={0.06}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
+  );
+}
+
 export function Scene3D() {
   const [titleStates, setTitleStates] = useState<Record<string, TitleState>>(
     {},
@@ -120,7 +140,16 @@ export function Scene3D() {
   const [titleMeta, setTitleMeta] = useState<Record<string, TitleMeta>>({});
   const isPausedRef = useRef(false);
   const resumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { decisions } = useAgentSocket();
+  const { decisions, sendAction } = useAgentSocket();
+
+  const spotLightRef = useRef<THREE.SpotLight>(null);
+  const spotLightTargetRef = useRef(new THREE.Object3D());
+
+  useEffect(() => {
+    if (spotLightRef.current) {
+      spotLightRef.current.target = spotLightTargetRef.current;
+    }
+  }, []);
 
   const latestDecision = decisions[0] ?? null;
   const agentTitleIndex = latestDecision
@@ -131,6 +160,27 @@ export function Scene3D() {
       ? titlePosition(agentTitleIndex, TITLES.length)
       : [0, 2, 0];
   const isAgentActive = latestDecision?.status === "pending";
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  function toggleFullscreen() {
+    if (!containerRef.current) return;
+
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+
+  useEffect(() => {
+    function handleFullscreenChange() {
+      setIsFullscreen(!!document.fullscreenElement);
+    }
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
 
   function handleControlsStart() {
@@ -194,38 +244,84 @@ export function Scene3D() {
   }, []);
 
   return (
-    <div className="h-150 rounded-2xl border border-border bg-surface/40 overflow-hidden">
+    <div ref={containerRef} className="relative h-150 rounded-2xl border border-border bg-surface/40 overflow-hidden">
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-3 right-3 z-10 text-xs font-mono px-3 py-1.5 rounded-lg border border-border bg-surface/80 hover:border-marquee/50 transition-colors text-ink backdrop-blur-sm"
+      >
+        {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+      </button>
+
+      {isAgentActive && latestDecision && (
+        <div className="absolute bottom-4 left-4 z-10 w-80 rounded-xl border border-border bg-surface/95 backdrop-blur-sm shadow-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="w-2 h-2 rounded-full bg-marquee animate-pulse" />
+            <span className="text-xs font-mono uppercase tracking-wide text-marquee">
+              Agent finding
+            </span>
+          </div>
+
+          <p className="font-bold font-mono text-sm text-ink mb-1">
+            {titleMeta[latestDecision.titleId]?.name ?? latestDecision.titleId}
+          </p>
+
+          <p className="text-sm text-ink mb-2">{latestDecision.summary}</p>
+          <p className="text-xs text-muted-foreground mb-3">{latestDecision.reasoning}</p>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => sendAction(latestDecision.id, "accept")}
+              className="flex-1 text-xs font-mono py-1.5 rounded-lg bg-scope text-void font-semibold hover:opacity-90 transition-opacity"
+            >
+              Accept
+            </button>
+            <button
+              onClick={() => sendAction(latestDecision.id, "reject")}
+              className="flex-1 text-xs font-mono py-1.5 rounded-lg border border-border text-ink hover:border-tally/50 transition-colors"
+            >
+              Reject
+            </button>
+          </div>
+        </div>
+      )}
+
       <Canvas camera={{ position: [0, 6, 10], fov: 50 }}>
+        <color attach="background" args={["#05070f"]} />
         <fog attach="fog" args={["#0a0e1a", 10, 16]} />
+        <Stars radius={80} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />
+
+        <Sparkles count={150} scale={[18, 6, 18]} size={1.5} speed={0.15} opacity={0.4} color="#8ba3ff" />
 
         <AutoOrbitCamera isPausedRef={isPausedRef} />
 
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, -1.5, 0]}
-          receiveShadow
-        >
-          <circleGeometry args={[8, 64]} />
-          <meshStandardMaterial color="#161b33" metalness={0.4} roughness={0.5} />
+        <mesh position={[0, -1.5, 0]} receiveShadow>
+          <cylinderGeometry args={[8, 8, 0.3, 64]} />
+          <meshStandardMaterial color="#1c2340" metalness={0.6} roughness={0.3} />
         </mesh>
 
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.49, 0]}>
-          <ringGeometry args={[7.7, 8, 64]} />
-          <meshStandardMaterial color="#6b8cff" emissive="#6b8cff" emissiveIntensity={0.6} />
+        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -1.34, 0]}>
+          <torusGeometry args={[8, 0.05, 16, 100]} />
+          <meshStandardMaterial color="#8ba3ff" emissive="#8ba3ff" emissiveIntensity={1.2} />
         </mesh>
 
         <spotLight
+          ref={spotLightRef}
           position={[0, 8, 0]}
-          angle={0.5}
-          penumbra={0.8}
-          intensity={3}
+          angle={0.6}
+          penumbra={0.6}
+          intensity={8}
           color="#8ba3ff"
-          target-position={[0, -1.5, 0]}
+          castShadow
         />
+        <primitive object={spotLightTargetRef.current} position={[0, -1.5, 0]} />
         <ambientLight intensity={0.4} />
         <hemisphereLight args={["#4a5578", "#0a0e1a", 0.6]} />
         <pointLight position={[10, 10, 10]} intensity={2} />
         <pointLight position={[-8, 6, -8]} intensity={1} color="#6b8cff" />
+
+        <LightBeam position={[6, 9, 6]} rotation={[0, 0, Math.PI * 0.08]} color="#8ba3ff" />
+        <LightBeam position={[-6, 9, -6]} rotation={[0, 0, -Math.PI * 0.06]} color="#f5a623" />
+        <LightBeam position={[0, 9, -8]} rotation={[Math.PI * 0.05, 0, 0]} color="#6b8cff" />
 
         {TITLES.map((titleId, i) => {
           const state = titleStates[titleId];
@@ -250,22 +346,29 @@ export function Scene3D() {
               </mesh>
 
               {meta?.posterUrl && (
-                <Html
-                  position={[0, radius + 0.6, 0]}
-                  center
-                  distanceFactor={10}
-                >
-                  <div className="flex flex-col items-center pointer-events-none">
-                    <img
-                      src={meta.posterUrl}
-                      alt={meta.name}
-                      className="w-16 rounded-md border border-border shadow-lg"
-                    />
-                    <span className="text-xs font-mono text-ink bg-void/80 px-1.5 py-0.5 rounded mt-1 whitespace-nowrap">
-                      {meta.name}
-                    </span>
-                  </div>
-                </Html>
+                <Billboard position={[0, radius + 1.6, 0]}>
+                  <Html center distanceFactor={8} transform>
+                    <div className="group relative w-24 cursor-pointer pointer-events-auto">
+                      <div className="relative overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10 transition-transform duration-300 ease-out group-hover:scale-110 group-hover:-translate-y-1">
+                        <img
+                          src={meta.posterUrl}
+                          alt={meta.name}
+                          className="w-full aspect-2/3 object-cover"
+                          draggable={false}
+                        />
+                        <div className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-black via-black/60 to-transparent" />
+                        <div className="absolute inset-x-0 bottom-0 p-2">
+                          <p className="text-white text-xs font-bold font-mono leading-tight drop-shadow-lg">
+                            {meta.name}
+                          </p>
+                          <div
+                            className={`mt-1 h-1 rounded-full ${isAnomaly ? "bg-tally" : "bg-scope"}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </Html>
+                </Billboard>
               )}
             </group>
           );

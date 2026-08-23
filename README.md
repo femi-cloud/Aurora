@@ -32,11 +32,13 @@ Aurora is a real-time audience analytics control room for a streaming catalog. I
 
 Under the hood, every viewing event lands in **ClickHouse** through a live ingestion pipeline (not a static fixture or a nightly batch): a `MergeTree` table for raw events, an `AggregatingMergeTree` fed continuously by a materialized view, and an agent loop that reads those aggregates every 45 seconds to decide whether Gemini should weigh in.
 
+Beyond the 2D control room, Aurora also ships **The Screening Room** — an alternative 3D view where each title is rendered as a glowing sphere on a lit platform, and the agent itself is embodied in the scene: it drifts toward whichever title it's currently evaluating and surfaces its finding right there, with one-click accept/reject.
+
 ## Architecture
 
 ```mermaid
 flowchart TD
-    SIM["Event simulator<br/><small>synthetic viewing events, ~every 2s</small>"]
+    SIM["Event simulator<br/><small>synthetic viewing events, ~every 10s</small>"]
     CH[("ClickHouse<br/><small>raw events + live aggregation</small>")]
     API["REST API<br/><small>Express — polled every 5s</small>"]
     ORCH["Orchestrator<br/><small>builds signals, triggers Gemini every 45s</small>"]
@@ -44,7 +46,7 @@ flowchart TD
     ML["ml-service<br/><small>FastAPI — IsolationForest + XGBoost</small>"]
     GEMINI["Gemini<br/><small>+ Groq fallback</small>"]
     WS["WebSocket<br/><small>pushes decisions live</small>"]
-    FE["Frontend dashboard<br/><small>React + Vite</small>"]
+    FE["Frontend dashboard<br/><small>React + Vite — 2D control room + 3D Screening Room</small>"]
 
     SIM --> CH
     CH --> API --> FE
@@ -58,7 +60,7 @@ flowchart TD
 
 | Layer | Technology |
 |---|---|
-| Frontend | React, Vite, TypeScript, Tailwind v4, shadcn/ui, Recharts |
+| Frontend | React, Vite, TypeScript, Tailwind v4, shadcn/ui, Recharts, Three.js (react-three-fiber + drei) |
 | Backend | Express, TypeScript (NodeNext), WebSocket (`ws`) |
 | Data store | **ClickHouse** (MergeTree + AggregatingMergeTree + materialized view) |
 | ML service | FastAPI (Python), IsolationForest, XGBoost |
@@ -70,6 +72,7 @@ flowchart TD
 - **Regional breakdown** — per-region viewership and drop-off, filterable by title
 - **Anomaly detection** — dual detector (relative baseline + IsolationForest), with detection and resolution timestamps, filterable by title/region
 - **Agent recommendations** — Gemini-generated decisions (prioritize dubbing, recut scene, boost market, monitor), filterable by status, actionable in one click (accept/reject), pushed live over WebSocket
+- **The Screening Room (3D mode)** — an immersive alternative view: each title rendered as a glowing sphere on a lit platform, sized by viewer count and colored by anomaly state, with real movie posters floating above as cards. An embodied agent orb drifts to whichever title Gemini is currently evaluating and surfaces its finding — with accept/reject actions — directly in the scene.
 - **Natural language queries** — ask a question in plain language, get a generated (read-only, validated) SQL query against ClickHouse plus a plain-language answer
 - **Drop-off prediction simulator** — XGBoost-backed prediction for a given title/region/device combination
 - **Snapshot detail view** — paginated grid of every title/region pair, with a radial drop-off gauge, filterable by time window
@@ -83,52 +86,58 @@ flowchart TD
   - Decision (Agent recommendations panel, mid-accept)
   - Explore (Natural Query + Drop-off predictor)
   - Detail (Snapshot grid with pagination)
+  - The Screening Room (3D mode, agent orb mid-decision with the overlay open)
 
   ![Signal & Detection](docs/screenshots/signal-detection.png)
   ![Decision](docs/screenshots/decision.png)
   ![Explore & Detail](docs/screenshots/explore-detail.png)
+  ![The Screening Room](docs/screenshots/screening-room.png)
 -->
 
 ## Getting started
 
 ### Prerequisites
 
-- Node.js (version — *fill in*)
+- Node.js 18+
 - Python 3.x (for `ml-service`)
-- A running ClickHouse instance (local via Docker, or hosted)
+- A running ClickHouse instance (local via Docker, or hosted — we use ClickHouse Cloud)
 - A Gemini API key (Google AI Studio or Vertex AI)
 - (Optional) a Groq API key, used as fallback
+- A TMDB API key, used to fetch real poster art and titles for the 6 pinned demo titles (optional — falls back to fictional titles/no posters if unset)
 
 ### Environment variables
 
 Create a `.env` file in `backend/` (see `.env.example`):
 
 ```env
-PORT=3001
-CLICKHOUSE_URL=http://localhost:8123
+PORT=3000
+CLICKHOUSE_URL=https://your-instance.clickhouse.cloud:8443
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=
 CLICKHOUSE_DB=aurora
 ML_SERVICE_URL=http://localhost:8000
 ORCHESTRATOR_INTERVAL_MS=45000
-ANOMALY_SCORE_THRESHOLD=1.0
+ANOMALY_SCORE_THRESHOLD=0.5
 GEMINI_API_KEY=
 GROQ_API_KEY=
+TMDB_API_KEY=
 ```
 
-<!-- TODO(you): confirm the exact variable names once ml-service and gemini.ts are finalized. -->
 
 ### Database setup
 
 ```bash
 # apply the schema (raw events table, aggregate table, materialized view)
-clickhouse-client < backend/clickhouse/migrations/001_schema.sql
+clickhouse-client < infra/clickhouse/init/001_schema.sql
+clickhouse-client < infra/clickhouse/init/002_add_poster_url.sql
 ```
+
+Both `audience_events` and `audience_stats_agg` have a 1-hour TTL, so ClickHouse purges old rows automatically — no manual cleanup needed in normal operation.
 
 ### Run it
 
 ```bash
-# 1. backend
+# 1. backend + event simulator (run together via concurrently)
 cd backend
 npm install
 npm run dev
@@ -142,58 +151,60 @@ uvicorn main:app --reload --port 8000
 cd frontend
 npm install
 npm run dev
-
-# 4. event simulator (populates ClickHouse with live synthetic data)
-cd backend
-npm run simulate   # runs eventGenerator.ts
 ```
+
+`npm run dev` in `backend/` starts both the Express server and the synthetic event simulator (`src/simulator/eventGenerator.ts`) side by side — no separate step needed. Run `npm run simulate` on its own if you ever want the simulator without the server.
 
 ## Project structure
-
-```
 Aurora/
-├── backend/                     Express + TypeScript (NodeNext)
-│   ├── index.ts                  API routes (snapshot, timeline, regional, anomalies, predict, query/natural)
-│   ├── clickhouse/
-│   │   ├── client.ts              ClickHouse connection
-│   │   ├── queries.ts             getCurrentSnapshot, getAudienceTimeline, getRegionalBreakdown, getAnomaliesRelative
-│   │   └── migrations/001_schema.sql
-│   ├── agent/
-│   │   ├── orchestrator.ts        45s cycle — decides when to call Gemini
-│   │   ├── decisionEngine.ts      generates AgentDecision objects
-│   │   ├── gemini.ts              Gemini client (+ Groq fallback)
-│   │   ├── sqlAgent.ts            natural language → SQL → ClickHouse → plain-language answer
-│   │   └── eventGenerator.ts      synthetic event simulator, live insert into ClickHouse
-│   └── ws/server.ts               WebSocket — broadcastDecision, onClientAction
-├── ml-service/                   FastAPI (Python), port 8000
-│   └── (IsolationForest + XGBoost — /anomalies, /predict/dropoff)
-├── frontend/                     Vite + React, Tailwind v4 + shadcn/ui
-│   └── src/
-│       ├── main.tsx
-│       ├── App.tsx                layout, header, section headings
-│       ├── index.css              design tokens (light/dark)
-│       ├── api/client.ts
-│       └── components/
-│           ├── ThemeSwitch.tsx
-│           ├── RadialGauge.tsx
-│           ├── Timeline.tsx
-│           ├── RegionalBreakdown.tsx
-│           ├── Anomalies.tsx
-│           ├── RecommendationsPanel.tsx
-│           ├── NaturalQuery.tsx
-│           ├── DropoffPredictor.tsx
-│           └── Snapshot.tsx
-└── packages/shared/src/types.ts
-```
+├── backend/ Express + TS (NodeNext)
+│ ├── src/
+│ │ ├── index.ts API routes (snapshot, timeline, regional, anomalies, titles, predict, query/natural)
+│ │ ├── clickhouse/
+│ │ │ ├── client.ts ClickHouse connection
+│ │ │ ├── queries.ts getCurrentSnapshot, getAudienceTimeline, getRegionalBreakdown, getAnomaliesRelative, getTitleMetadata
+│ │ │ └── run-migration.ts one-off script to run .sql files via the Node client
+│ │ ├── agent/
+│ │ │ ├── orchestrator.ts 45s cycle — builds signals, decides when to call Gemini
+│ │ │ ├── decisionEngine.ts generates AgentDecision objects
+│ │ │ ├── gemini.ts Gemini client (+ Groq fallback), per-model throttling
+│ │ │ ├── sqlAgent.ts natural language → SQL → ClickHouse → plain-language answer
+│ │ │ └── simulator/
+│ │ │ └── eventGenerator.ts synthetic event simulator, TMDB-backed titles/posters, live insert into ClickHouse
+│ │ └── ws/server.ts WebSocket — broadcastDecision, onClientAction
+│ └── .env Gemini/Groq/TMDB keys, ClickHouse credentials
+├── ml-service/ FastAPI (Python), port 8000
+│ └── app/ anomaly.py (IsolationForest), dropoff_model.py (XGBoost), queries.py, clickhouse_client.py, config.py, main.py
+├── frontend/ Vite + React, Tailwind v4 + shadcn/ui
+│ └── src/
+│ ├── App.tsx layout, header, 2D/3D mode toggle
+│ ├── index.css design tokens (light/dark/system)
+│ ├── api/client.ts
+│ ├── hooks/useAgentSocket.ts
+│ ├── types/audience.ts
+│ └── components/
+│ ├── ThemeSwitch.tsx
+│ ├── RadialGauge.tsx
+│ ├── Timeline.tsx
+│ ├── RegionalBreakdown.tsx
+│ ├── Anomalies.tsx
+│ ├── RecommendationsPanel.tsx
+│ ├── NaturalQuery.tsx
+│ ├── DropoffPredictor.tsx
+│ ├── Snapshot.tsx
+│ ├── MarqueeLights.tsx
+│ ├── MarqueeTicker.tsx
+│ └── Scene3D.tsx The Screening Room — 3D scene (spheres, platform, camera, posters, agent orb)
+├── packages/shared/src/types.ts AgentDecision and other shared types
+├── infra/clickhouse/init/ 001_schema.sql, 002_add_poster_url.sql
+├── docker-compose.yml
+├── LICENSE
+└── README.md
+
 
 ## Demo
 
-<!--
-  TODO(you): 3-minute demo video (YouTube/Vimeo, public, English or English subtitles), required for submission.
-  [Watch the demo](YOUR_VIDEO_URL_HERE)
--->
 
-<!-- TODO(you): hosted project URL, required for submission. -->
 
 ## License
 
@@ -204,3 +215,4 @@ MIT
 - [Google Gemini](https://ai.google.dev/) — decision-making agent
 - [ClickHouse](https://clickhouse.com/) — real-time event ingestion and aggregation
 - [Groq](https://groq.com/) — fallback inference
+- [TMDB](https://www.themoviedb.org/) — real movie titles and poster art for the demo catalog

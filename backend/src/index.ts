@@ -4,7 +4,7 @@ import cors from "cors";
 import { createServer } from "node:http";
 import { testClickhouseConnection } from "./clickhouse/client";
 import { attachWebSocketServer } from "./ws/server.js";
-import { startOrchestrator } from "./agent/orchestrator.js";
+import { startOrchestrator, getDecisions } from "./agent/orchestrator.js";
 import { runNaturalQuery } from "./agent/sqlAgent.js";
 import {
   getCurrentSnapshot,
@@ -118,6 +118,15 @@ app.post("/api/query/natural", async (req, res) => {
   } catch (err) {
     console.error("[api/query/natural] error:", err);
     res.status(500).json({ error: err instanceof Error ? err.message : "Unknown error" });
+  }
+});
+
+app.get("/api/decisions", (req, res) => {
+  try {
+    res.json(getDecisions());
+  } catch (err) {
+    console.error("[api/decisions] error:", err);
+    res.status(500).json({ error: "Unable to fetch decisions" });
   }
 });
 

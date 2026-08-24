@@ -60,7 +60,7 @@ export function DropoffPredictor() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-xl font-bold mb-4">Drop-off prediction simulator (XGBoost)</h2>
+      <h2 className="text-xl font-bold font-display tracking-tight text-ink mb-4">Drop-off prediction simulator (XGBoost)</h2>
 
       <div className="flex gap-3 mb-4 flex-wrap">
         <Select
@@ -132,13 +132,13 @@ export function DropoffPredictor() {
         <button
           onClick={handlePredict}
           disabled={loading}
-          className="bg-marquee hover:bg-marquee/90 disabled:bg-muted disabled:text-muted-foreground text-void font-mono text-sm font-semibold px-6 py-2 rounded-lg transition-colors"
+          className="border border-marquee/50 bg-marquee/10 hover:bg-marquee/20 disabled:border-border disabled:bg-transparent disabled:text-muted-foreground text-marquee font-mono text-sm font-semibold px-6 py-2 rounded-lg transition-colors"
         >
           {loading ? "..." : "Predict"}
         </button> 
       </div>
 
-      {error && <p className="text-red-400">Error: {error}</p>}
+      {error && <p className="text-tally">Error: {error}</p>}
 
       {result && (
         <div className="bg-surface border border-border rounded-lg p-4 flex items-center gap-4">

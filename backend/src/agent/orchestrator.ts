@@ -163,3 +163,12 @@ export function startOrchestrator(): void {
   runCycle(); // immediate first cycle, no waiting for the first interval
   setInterval(runCycle, CYCLE_INTERVAL_MS);
 }
+
+/**
+ * Returns all decisions currently held in memory, most recent first.
+ * Used to seed the frontend's decision history on page load/refresh,
+ * before the WebSocket starts delivering new ones.
+ */
+export function getDecisions(): AgentDecision[] {
+  return Array.from(decisions.values()).reverse();
+}

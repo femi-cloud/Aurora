@@ -67,7 +67,7 @@ export function RegionalBreakdown() {
   return (
     <div className="mt-8">
       <div className="flex items-center gap-4 mb-4">
-        <h2 className="text-xl font-bold">Regional Breakdown</h2>
+        <h2 className="text-xl font-bold font-display tracking-tight text-ink">Regional Breakdown</h2>
         <Select
           value={selectedTitle}
           onValueChange={(value) => {
@@ -91,25 +91,25 @@ export function RegionalBreakdown() {
         </Select>
       </div>
 
-      {loading && <p>Loading...</p>}
-      {error && <p className="text-red-400">Error: {error}</p>}
+      {loading && <p className="font-mono text-sm text-muted-foreground">Loading...</p>}
+      {error && <p className="font-mono text-sm text-tally">Error: {error}</p>}
 
       {!loading && !error && (
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis dataKey="region" stroke="#94a3b8" />
-            <YAxis yAxisId="left" stroke="#60a5fa" />
-            <YAxis yAxisId="right" orientation="right" stroke="#f87171" unit="%" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="region" stroke="var(--color-muted-foreground)" />
+            <YAxis yAxisId="left" stroke="var(--color-scope)" />
+            <YAxis yAxisId="right" orientation="right" stroke="var(--color-tally)" unit="%" />
             <Tooltip
-                contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: "6px" }}
-                labelStyle={{ color: "#e2e8f0", fontWeight: "bold" }}
-                itemStyle={{ color: "#e2e8f0" }}
-                cursor={{ fill: "rgba(148, 163, 184, 0.1)" }}
+                contentStyle={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "6px" }}
+                labelStyle={{ color: "var(--color-ink)", fontWeight: "bold" }}
+                itemStyle={{ color: "var(--color-ink)" }}
+                cursor={{ fill: "color-mix(in oklab, var(--color-ink) 8%, transparent)" }}
             />
             <Legend />
-            <Bar yAxisId="left" dataKey="viewers" name="Viewers" fill="#60a5fa" />
-            <Bar yAxisId="right" dataKey="dropOffRate" name="Drop-off (%)" fill="#f87171" />
+            <Bar yAxisId="left" dataKey="viewers" name="Viewers" fill="var(--color-scope)" />
+            <Bar yAxisId="right" dataKey="dropOffRate" name="Drop-off (%)" fill="var(--color-tally)" />
           </BarChart>
         </ResponsiveContainer>
       )}

@@ -56,7 +56,7 @@ export function NaturalQuery() {
 
   return (
     <div className="mt-8">
-      <h2 className="text-xl font-bold mb-4">Ask a question</h2>
+      <h2 className="text-xl font-bold font-display tracking-tight text-ink mb-4">Ask a question</h2>
 
       <form onSubmit={handleSubmit} className="flex gap-2 mb-4">
         <input
@@ -69,7 +69,7 @@ export function NaturalQuery() {
         <button
           type="submit"
           disabled={loading}
-          className="bg-marquee hover:bg-marquee/90 disabled:bg-muted disabled:text-muted-foreground text-void font-mono text-sm font-semibold px-6 py-2 rounded-lg transition-colors"
+          className="border border-marquee/50 bg-marquee/10 hover:bg-marquee/20 disabled:border-border disabled:bg-transparent disabled:text-muted-foreground text-marquee font-mono text-sm font-semibold px-6 py-2 rounded-lg transition-colors"
         >
           {loading ? "..." : "Ask"}
         </button>

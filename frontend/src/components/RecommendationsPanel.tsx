@@ -80,7 +80,7 @@ export function RecommendationsPanel() {
   return (
     <section className="space-y-4">
       <header className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-lg font-semibold">Agent recommendations</h2>
+        <h2 className="text-lg font-semibold font-display tracking-tight text-ink">Agent recommendations</h2>
         <div className="flex items-center gap-3">
           <Select value={statusFilter} onValueChange={(value) => value && setStatusFilter(value)}>
             <SelectTrigger className="w-35 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">

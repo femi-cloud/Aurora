@@ -94,7 +94,7 @@ export function Anomalies() {
   return (
     <div className="mt-8">
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <h2 className="text-xl font-bold">Detected anomalies</h2>
+        <h2 className="text-xl font-bold font-display tracking-tight text-ink">Detected anomalies</h2>
 
         <Select value={titleFilter} onValueChange={(value) => value && setTitleFilter(value)}>
           <SelectTrigger className="w-45 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
@@ -137,7 +137,7 @@ export function Anomalies() {
         </Select>
       </div>
 
-      {loading && <p>Loading...</p>}
+      {loading && <p className="font-mono text-sm text-muted-foreground">Loading...</p>}
       {error && <p className="text-tally">Error: {error}</p>}
 
       {!loading && !error && filteredLog.length === 0 && (

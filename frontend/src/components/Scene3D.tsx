@@ -3,6 +3,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Vector3 } from "three";
 import * as THREE from "three";
 import { OrbitControls, Html, Sparkles, Billboard, Stars } from "@react-three/drei";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { getSnapshot, getAnomalies, getTitles } from "../api/client";
 import { useAgentSocket } from "../hooks/useAgentSocket";
 
@@ -339,7 +340,7 @@ export function Scene3D() {
                 <meshStandardMaterial
                   color={isAnomaly ? ANOMALY_COLOR : BASE_COLOR}
                   emissive={isAnomaly ? ANOMALY_COLOR : BASE_COLOR}
-                  emissiveIntensity={0.15}
+                  emissiveIntensity={0.7}
                   roughness={0.4}
                   metalness={0.2}
                 />
@@ -381,6 +382,15 @@ export function Scene3D() {
           onStart={handleControlsStart}
           onEnd={handleControlsEnd}
         />
+
+        <EffectComposer>
+          <Bloom
+            intensity={1.2}
+            luminanceThreshold={0.15}
+            luminanceSmoothing={0.9}
+            mipmapBlur
+          />
+        </EffectComposer>
       </Canvas>
     </div>
   );

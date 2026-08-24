@@ -13,6 +13,7 @@ export interface AgentDecision {
 }
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:3000";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 export function useAgentSocket() {
   const [decisions, setDecisions] = useState<AgentDecision[]>([]);
@@ -44,6 +45,27 @@ export function useAgentSocket() {
       socket.close();
     };
   }, []);
+
+  useEffect(() => {
+  fetch(`${API_URL}/api/decisions`)
+    .then((res) => {
+      if (!res.ok) throw new Error(`GET /api/decisions ${res.status}`);
+      return res.json();
+    })
+    .then((initial: AgentDecision[]) => {
+      setDecisions((prev) => {
+        // Merge fetched history with anything the WebSocket already
+        // delivered while this request was in flight, dedup by id,
+        // most recent first.
+        const merged = new Map(initial.map((d) => [d.id, d]));
+        for (const d of prev) merged.set(d.id, d);
+        return Array.from(merged.values()).sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
+    })
+    .catch((err) => console.error("[useAgentSocket] failed to fetch decision history:", err));
+}, []);
 
   const sendAction = useCallback(
     (decisionId: string, action: "accept" | "reject") => {

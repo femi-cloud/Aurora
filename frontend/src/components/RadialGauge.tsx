@@ -3,8 +3,8 @@ export function RadialGauge({ percentage, size = 56 }: { percentage: number; siz
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference * (1 - percentage / 100);
-  const color =
-    percentage >= 40 ? "var(--tally)" : percentage >= 20 ? "var(--marquee)" : "var(--scope)";
+  const t = Math.min(100, percentage * 1.6);
+  const color = `color-mix(in oklab, var(--scope) ${100 - t}%, var(--tally) ${t}%)`;
 
   return (
     <div className="relative" style={{ width: size, height: size }}>

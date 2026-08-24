@@ -267,7 +267,19 @@ export function Scene3D() {
           </p>
 
           <p className="text-sm text-ink mb-2">{latestDecision.summary}</p>
-          <p className="text-xs text-muted-foreground mb-3">{latestDecision.reasoning}</p>
+
+          {latestDecision.reasoningTrail?.length > 0 && (
+            <ol className="space-y-1.5 mb-3 border-l border-border/60 pl-3">
+              {latestDecision.reasoningTrail.map((step) => (
+                <li key={step.id} className="text-xs">
+                  <span className="font-mono uppercase tracking-wide text-marquee/80 mr-1.5">
+                    {step.label}
+                  </span>
+                  <span className="text-muted-foreground">{step.detail}</span>
+                </li>
+              ))}
+            </ol>
+          )}
 
           <div className="flex gap-2">
             <button

@@ -99,6 +99,30 @@ async function fetchTitleMetadata(): Promise<void> {
   console.log("[simulator] TMDB metadata loaded:", TITLES.map((t) => t.name).join(", "));
 }
 
+/**
+ * Writes title metadata (name + poster) to the dedicated aurora.titles
+ * table, once at startup — this is what getTitleMetadata() reads from
+ * now, instead of scanning the ever-growing audience_events table.
+ */
+async function persistTitleMetadata(
+  client: ReturnType<typeof createClient>
+): Promise<void> {
+  try {
+    await client.insert({
+      table: "titles",
+      values: TITLES.map((t) => ({
+        title_id: t.id,
+        title_name: t.name,
+        poster_url: t.posterUrl,
+      })),
+      format: "JSONEachRow",
+    });
+    console.log("[simulator] title metadata persisted to aurora.titles");
+  } catch (err) {
+    console.error("[simulator] failed to persist title metadata:", err);
+  }
+}
+
 function randomChoice<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -209,6 +233,7 @@ async function main() {
   });
 
   await fetchTitleMetadata();
+  await persistTitleMetadata(client);
 
   let batchIndex = 0;
   let running = true;

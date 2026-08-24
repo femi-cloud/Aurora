@@ -1,6 +1,7 @@
 import { getCurrentSnapshot, getAnomaliesRelative } from "../clickhouse/queries.js";
 import { generateDecision, type TitleSignal } from "./decisionEngine.js";
 import { broadcastDecision, onClientAction } from "../ws/server.js";
+import { persistDecisionSnapshot, loadLatestDecisions } from "../clickhouse/decisions.js";
 import type { AgentDecision } from "../../../packages/shared/src/types.js";
 
 // Within the 30-60s range — 45s default, adjustable without recompiling.
@@ -134,6 +135,7 @@ async function runCycle(): Promise<void> {
         const decision = await generateDecision(signal);
         decisions.set(decision.id, decision);
         broadcastDecision(decision);
+        persistDecisionSnapshot(decision); // fire-and-forget, non-blocking
       } catch (err) {
         console.error(`[orchestrator] failed to generate decision for ${k}:`, err);
       } finally {
@@ -157,6 +159,12 @@ export function startOrchestrator(): void {
     }
     decision.status = action === "accept" ? "accepted" : "rejected";
     broadcastDecision(decision); // rebroadcasts the new status to all clients
+    persistDecisionSnapshot(decision); // fire-and-forget, non-blocking
+  });
+
+  loadLatestDecisions().then((rows) => {
+    for (const d of rows) decisions.set(d.id, d);
+    console.log(`[orchestrator] reseeded ${rows.length} decision(s) from ClickHouse`);
   });
 
   console.log(`[orchestrator] started — cycle every ${CYCLE_INTERVAL_MS}ms`);

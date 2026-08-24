@@ -116,14 +116,10 @@ export async function getAnomaliesRelative(
       r.current_rate,
       b.avg_drop_off_rate AS baseline_rate,
       r.current_rate - b.avg_drop_off_rate AS deviation,
-      (
-        SELECT any(poster_url)
-        FROM audience_events ae
-        WHERE ae.title_id = r.title_id
-          AND ae.poster_url IS NOT NULL
-      ) AS poster_url
+      t.poster_url AS poster_url
     FROM recent r
     INNER JOIN baseline b ON r.title_id = b.title_id AND r.region = b.region
+    LEFT JOIN titles t ON t.title_id = r.title_id
     WHERE r.viewers >= 3
       AND (r.current_rate - b.avg_drop_off_rate) > {deviationThreshold:Float32}
     ORDER BY deviation DESC
@@ -140,12 +136,8 @@ export async function getAnomaliesRelative(
 
 export async function getTitleMetadata() {
   const query = `
-    SELECT
-      title_id,
-      title_name,
-      any(poster_url) AS poster_url
-    FROM audience_events
-    GROUP BY title_id, title_name
+    SELECT title_id, title_name, poster_url
+    FROM titles
     ORDER BY title_id
   `;
 

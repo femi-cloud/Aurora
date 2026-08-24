@@ -1,16 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-
-// Mirrors AgentDecision from packages/shared/src/types.ts
-// (kept local — see backend/src/agent/decisionEngine.ts for why).
-export interface AgentDecision {
-  id: string;
-  createdAt: string;
-  titleId: string;
-  type: "prioritize_dubbing" | "recut_scene" | "boost_market" | "monitor";
-  summary: string;
-  reasoning: string;
-  status: "pending" | "accepted" | "rejected";
-}
+import type { AgentDecision } from "../../../packages/shared/src/types";
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:3000";
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";

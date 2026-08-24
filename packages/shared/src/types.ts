@@ -7,6 +7,12 @@ export interface AudienceEvent {
   device: string;
 }
 
+export interface DecisionStep {
+  id: string;
+  label: "Anomaly Detected" | "Regional Context" | "Drop-off Prediction" | "Decision";
+  detail: string;
+}
+
 export interface AgentDecision {
   id: string;
   createdAt: string;
@@ -14,5 +20,6 @@ export interface AgentDecision {
   type: "prioritize_dubbing" | "recut_scene" | "boost_market" | "monitor";
   summary: string;
   reasoning: string;
+  reasoningTrail: DecisionStep[];
   status: "pending" | "accepted" | "rejected";
 }

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useAgentSocket, type AgentDecision } from "../hooks/useAgentSocket";
+import { useAgentSocket} from "../hooks/useAgentSocket";
+import type { AgentDecision } from "../../../packages/shared/src/types";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

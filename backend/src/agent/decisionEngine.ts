@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { askGeminiJSON } from "./gemini.js";
-import type { AgentDecision } from "../../../packages/shared/src/types";
+import { runNaturalQuery } from "./sqlAgent.js";
+import type { AgentDecision, DecisionStep } from "../../../packages/shared/src/types";
 
 /**
  * Aggregated signal for a single title, produced by the ML service
@@ -38,7 +39,7 @@ interface GeminiDecisionOutput {
   reasoning: string;
 }
 
-function buildPrompt(signal: TitleSignal): string {
+function buildPrompt(signal: TitleSignal, regionalContext: string): string {
   return `You are a streaming platform production/distribution analyst agent.
 Given the following audience signal for a title, decide on ONE action.
 
@@ -49,6 +50,7 @@ Average seconds watched: ${signal.avgSecondsWatched}
 Drop-off rate: ${signal.dropOffRate}
 Anomaly score: ${signal.anomalyScore ?? "not available"}
 Predicted future drop-off risk: ${signal.dropOffPrediction ?? "not available"}
+Regional/historical context: ${regionalContext}
 
 Choose the most appropriate action type:
 - "prioritize_dubbing": localization/dubbing gap is likely hurting retention in this region
@@ -57,7 +59,8 @@ Choose the most appropriate action type:
 - "monitor": signal is inconclusive or not strong enough to act on yet
 
 Respond with a short summary (one sentence) and a reasoning (2-3 sentences)
-explaining what in the data justifies this action.`;
+that explicitly references the anomaly score, the regional context, and the
+drop-off prediction above.`;
 }
 
 /**
@@ -66,11 +69,51 @@ explaining what in the data justifies this action.`;
 export async function generateDecision(
   signal: TitleSignal
 ): Promise<AgentDecision> {
-  const prompt = buildPrompt(signal);
+  const trail: DecisionStep[] = [];
+
+  trail.push({
+    id: randomUUID(),
+    label: "Anomaly Detected",
+    detail: `Anomaly score ${signal.anomalyScore ?? 0} for ${signal.titleId} in ${signal.region} — ${signal.totalViews} views, ${(signal.dropOffRate * 100).toFixed(1)}% drop-off rate.`,
+  });
+
+  const contextQuestion = `How does ${signal.titleId}'s viewer count and drop-off rate in ${signal.region} over the last 60 minutes compare to its average over the last 24 hours, and to other regions for the same title?`;
+  let regionalContext = "Regional context unavailable.";
+  try {
+    const context = await runNaturalQuery(contextQuestion);
+    regionalContext = context.answer;
+  } catch (err) {
+    console.error(
+      `[decisionEngine] context query failed for ${signal.titleId}/${signal.region}:`,
+      err
+    );
+  }
+  trail.push({
+    id: randomUUID(),
+    label: "Regional Context",
+    detail: regionalContext,
+  });
+
+  trail.push({
+    id: randomUUID(),
+    label: "Drop-off Prediction",
+    detail:
+      signal.dropOffPrediction !== undefined
+        ? `ML model predicts a ${(signal.dropOffPrediction * 100).toFixed(1)}% future drop-off risk.`
+        : "Drop-off prediction unavailable.",
+  });
+
+  const prompt = buildPrompt(signal, regionalContext);
   const output = await askGeminiJSON<GeminiDecisionOutput>(
     prompt,
     decisionSchema
   );
+
+  trail.push({
+    id: randomUUID(),
+    label: "Decision",
+    detail: output.reasoning,
+  });
 
   return {
     id: randomUUID(),
@@ -79,6 +122,7 @@ export async function generateDecision(
     type: output.type,
     summary: output.summary,
     reasoning: output.reasoning,
+    reasoningTrail: trail,
     status: "pending",
   };
 }

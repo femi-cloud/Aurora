@@ -2,20 +2,18 @@ import { useEffect, useState, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Vector3 } from "three";
 import * as THREE from "three";
-import { OrbitControls, Html, Sparkles, Billboard, Stars } from "@react-three/drei";
+import { OrbitControls, Html, Sparkles, Billboard, Stars, Line } from "@react-three/drei";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { getSnapshot, getAnomalies, getTitles } from "../api/client";
 import { useAgentSocket } from "../hooks/useAgentSocket";
 
-// Same 6 pinned title_ids as the simulator (aurora-01..06), kept in a fixed
+// Same 20 pinned title_ids as the simulator (aurora-01..20), kept in a fixed
 // circular layout. Position stays constant; size and color react to live data.
 const TITLES = [
-  "aurora-01",
-  "aurora-02",
-  "aurora-03",
-  "aurora-04",
-  "aurora-05",
-  "aurora-06",
+  "aurora-01", "aurora-02", "aurora-03", "aurora-04", "aurora-05",
+  "aurora-06", "aurora-07", "aurora-08", "aurora-09", "aurora-10",
+  "aurora-11", "aurora-12", "aurora-13", "aurora-14", "aurora-15",
+  "aurora-16", "aurora-17", "aurora-18", "aurora-19", "aurora-20",
 ];
 
 const BASE_COLOR = "#3b82f6"; // scope-ish blue, no anomaly
@@ -25,12 +23,69 @@ const ANOMALY_COLOR = "#ef4444"; // tally-red, active anomaly
 // with 0 viewers is still visible and a very popular one doesn't dwarf the scene.
 const MIN_RADIUS = 0.5;
 const MAX_RADIUS = 1.6;
-const VIEWER_COUNT_FOR_MAX_RADIUS = 200; // tuning knob, adjust after watching real data
+const VIEWER_COUNT_FOR_MAX_RADIUS = 70; // tuning knob, adjust after watching real data
+
+const ORBIT_COUNT = 3;
+const ORBIT_RADIUS = 6.5;
+const ORBIT_TILT_DEG = 70; // same tilt for every ring, only the Y rotation differs
 
 function titlePosition(index: number, total: number): [number, number, number] {
-  const angle = (index / total) * Math.PI * 2;
-  const radius = 5.5;
-  return [Math.cos(angle) * radius, 0, Math.sin(angle) * radius];
+  const orbitIndex = index % ORBIT_COUNT;
+  const positionInOrbit = Math.floor(index / ORBIT_COUNT);
+  const countInOrbit = Math.ceil(total / ORBIT_COUNT);
+
+  const theta = (positionInOrbit / countInOrbit) * Math.PI * 2;
+  const localX = Math.cos(theta) * ORBIT_RADIUS;
+  const localZ = Math.sin(theta) * ORBIT_RADIUS;
+
+  // Tilt the ring around the X axis, then rotate the whole ring around Y
+  // by 60° increments per orbit — same construction as the React atom logo.
+  const tiltRad = (ORBIT_TILT_DEG * Math.PI) / 180;
+  const tiltedY = localZ * Math.sin(tiltRad);
+  const tiltedZ = localZ * Math.cos(tiltRad);
+
+  const rotYRad = (orbitIndex * 60 * Math.PI) / 180;
+  const finalX = localX * Math.cos(rotYRad) + tiltedZ * Math.sin(rotYRad);
+  const finalZ = -localX * Math.sin(rotYRad) + tiltedZ * Math.cos(rotYRad);
+
+  return [finalX, tiltedY, finalZ];
+}
+
+const ORBIT_COLORS = ["#61dafb", "#8ba3ff", "#f5a623"]; // une teinte par orbite
+
+
+function orbitRingPoints(orbitIndex: number, segments = 128): Vector3[] {
+  const tiltRad = (ORBIT_TILT_DEG * Math.PI) / 180;
+  const rotYRad = (orbitIndex * 60 * Math.PI) / 180;
+  const points: Vector3[] = [];
+
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    const localX = Math.cos(theta) * ORBIT_RADIUS;
+    const localZ = Math.sin(theta) * ORBIT_RADIUS;
+
+    const tiltedY = localZ * Math.sin(tiltRad);
+    const tiltedZ = localZ * Math.cos(tiltRad);
+
+    const finalX = localX * Math.cos(rotYRad) + tiltedZ * Math.sin(rotYRad);
+    const finalZ = -localX * Math.sin(rotYRad) + tiltedZ * Math.cos(rotYRad);
+
+    points.push(new Vector3(finalX, tiltedY, finalZ));
+  }
+
+  return points;
+}
+
+function OrbitRing({ orbitIndex, color }: { orbitIndex: number; color: string }) {
+  return (
+    <Line
+      points={orbitRingPoints(orbitIndex)}
+      color={color}
+      transparent
+      opacity={0.35}
+      lineWidth={1}
+    />
+  );
 }
 
 function radiusForViewerCount(viewerCount: number): number {
@@ -55,11 +110,11 @@ function AutoOrbitCamera({
 }) {
   const angleRef = useRef(0);
 
-  useFrame((state, delta) => {
+    useFrame((state, delta) => {
     if (isPausedRef.current) return;
 
     angleRef.current += delta * 0.05; // slow, ~2 minutes per full revolution
-    const radius = 12;
+    const radius = 14; // widened to clear the outer ring (up to ~12.5 from center)
     state.camera.position.x = Math.cos(angleRef.current) * radius;
     state.camera.position.z = Math.sin(angleRef.current) * radius;
     state.camera.position.y = 6;
@@ -298,9 +353,9 @@ export function Scene3D() {
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 6, 10], fov: 50 }}>
+      <Canvas camera={{ position: [0, 7, 13], fov: 50 }}>
         <color attach="background" args={["#05070f"]} />
-        <fog attach="fog" args={["#0a0e1a", 10, 16]} />
+        <fog attach="fog" args={["#0a0e1a", 12, 26]} />
         <Stars radius={80} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />
 
         <Sparkles count={150} scale={[18, 6, 18]} size={1.5} speed={0.15} opacity={0.4} color="#8ba3ff" />
@@ -308,12 +363,12 @@ export function Scene3D() {
         <AutoOrbitCamera isPausedRef={isPausedRef} />
 
         <mesh position={[0, -1.5, 0]} receiveShadow>
-          <cylinderGeometry args={[8, 8, 0.3, 64]} />
+          <cylinderGeometry args={[9, 9, 0.3, 64]} />
           <meshStandardMaterial color="#1c2340" metalness={0.6} roughness={0.3} />
         </mesh>
 
         <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -1.34, 0]}>
-          <torusGeometry args={[8, 0.05, 16, 100]} />
+          <torusGeometry args={[13, 0.05, 16, 100]} />
           <meshStandardMaterial color="#8ba3ff" emissive="#8ba3ff" emissiveIntensity={1.2} />
         </mesh>
 
@@ -336,6 +391,9 @@ export function Scene3D() {
         <LightBeam position={[-6, 9, -6]} rotation={[0, 0, -Math.PI * 0.06]} color="#f5a623" />
         <LightBeam position={[0, 9, -8]} rotation={[Math.PI * 0.05, 0, 0]} color="#6b8cff" />
 
+        {[0, 1, 2].map((orbitIndex) => (
+          <OrbitRing key={orbitIndex} orbitIndex={orbitIndex} color={ORBIT_COLORS[orbitIndex]} />
+        ))}
         {TITLES.map((titleId, i) => {
           const state = titleStates[titleId];
           const meta = titleMeta[titleId];

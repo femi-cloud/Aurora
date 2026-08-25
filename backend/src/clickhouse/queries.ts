@@ -136,8 +136,12 @@ export async function getAnomaliesRelative(
 
 export async function getTitleMetadata() {
   const query = `
-    SELECT title_id, title_name, poster_url
+    SELECT
+      title_id,
+      argMax(title_name, updated_at) AS title_name,
+      argMax(poster_url, updated_at) AS poster_url
     FROM titles
+    GROUP BY title_id
     ORDER BY title_id
   `;
 

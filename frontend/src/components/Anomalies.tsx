@@ -23,6 +23,20 @@ const TITLES = [
   { id: "aurora-04", name: "Static Bloom" },
   { id: "aurora-05", name: "Echo Chamber" },
   { id: "aurora-06", name: "Paper Moons" },
+  { id: "aurora-07", name: "Interstellar" },
+  { id: "aurora-08", name: "The Matrix" },
+  { id: "aurora-09", name: "Pulp Fiction" },
+  { id: "aurora-10", name: "The Dark Knight" },
+  { id: "aurora-11", name: "Everything Everywhere All at Once" },
+  { id: "aurora-12", name: "Whiplash" },
+  { id: "aurora-13", name: "Spider-Man: Into the Spider-Verse" },
+  { id: "aurora-14", name: "The Grand Budapest Hotel" },
+  { id: "aurora-15", name: "Dune" },
+  { id: "aurora-16", name: "The Social Network" },
+  { id: "aurora-17", name: "Knives Out" },
+  { id: "aurora-18", name: "Coco" },
+  { id: "aurora-19", name: "Oppenheimer" },
+  { id: "aurora-20", name: "Barbie" },
 ];
 
 const REGIONS = ["NA", "EU", "WA", "SA", "APAC"];

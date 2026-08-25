@@ -11,8 +11,8 @@ const CLICKHOUSE_USER = process.env.CLICKHOUSE_USER ?? "default";
 const CLICKHOUSE_PASSWORD = process.env.CLICKHOUSE_PASSWORD ?? "";
 
 const BATCH_INTERVAL_MS = 10000; // one batch every 10s
-const MIN_EVENTS_PER_BATCH = 5;
-const MAX_EVENTS_PER_BATCH = 20;
+const MIN_EVENTS_PER_BATCH = 15;
+const MAX_EVENTS_PER_BATCH = 60;
 const ANOMALY_EVERY_N_BATCHES = 30; // ~1 anomaly per minute at 2s/batch
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY ?? "";
@@ -28,6 +28,20 @@ const TITLE_SEEDS = [
   { id: "aurora-04", tmdbId: 76341, baseline: 0.75, fallbackName: "Static Bloom" },
   { id: "aurora-05", tmdbId: 419430, baseline: 0.5, fallbackName: "Echo Chamber" },
   { id: "aurora-06", tmdbId: 313369, baseline: 0.65, fallbackName: "Paper Moons" },
+  { id: "aurora-07", tmdbId: 157336, baseline: 0.8, fallbackName: "Wormhole Season" },
+  { id: "aurora-08", tmdbId: 603, baseline: 0.9, fallbackName: "Red Pill Blue Pill" },
+  { id: "aurora-09", tmdbId: 680, baseline: 0.72, fallbackName: "Nonlinear Diner" },
+  { id: "aurora-10", tmdbId: 155, baseline: 0.88, fallbackName: "Gotham Nights" },
+  { id: "aurora-11", tmdbId: 545611, baseline: 0.68, fallbackName: "Bagel Multiverse" },
+  { id: "aurora-12", tmdbId: 244786, baseline: 0.55, fallbackName: "Double Time" },
+  { id: "aurora-13", tmdbId: 324857, baseline: 0.78, fallbackName: "Into the Verse" },
+  { id: "aurora-14", tmdbId: 120467, baseline: 0.6, fallbackName: "Concierge's Ledger" },
+  { id: "aurora-15", tmdbId: 438631, baseline: 0.82, fallbackName: "Spice Horizon" },
+  { id: "aurora-16", tmdbId: 37799, baseline: 0.58, fallbackName: "Dorm Room IPO" },
+  { id: "aurora-17", tmdbId: 546554, baseline: 0.7, fallbackName: "Estate of Confusion" },
+  { id: "aurora-18", tmdbId: 354912, baseline: 0.75, fallbackName: "Land of Marigolds" },
+  { id: "aurora-19", tmdbId: 872585, baseline: 0.65, fallbackName: "Trinity Site" },
+  { id: "aurora-20", tmdbId: 346698, baseline: 0.85, fallbackName: "Dreamhouse Reboot" },
 ];
 
 interface Title {

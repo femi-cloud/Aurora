@@ -26,7 +26,7 @@ const MAX_RADIUS = 1.6;
 const VIEWER_COUNT_FOR_MAX_RADIUS = 70; // tuning knob, adjust after watching real data
 
 const ORBIT_COUNT = 3;
-const ORBIT_RADIUS = 6.5;
+const ORBIT_RADIUS = 10;
 const ORBIT_TILT_DEG = 70; // same tilt for every ring, only the Y rotation differs
 
 function titlePosition(index: number, total: number): [number, number, number] {
@@ -114,7 +114,7 @@ function AutoOrbitCamera({
     if (isPausedRef.current) return;
 
     angleRef.current += delta * 0.05; // slow, ~2 minutes per full revolution
-    const radius = 14; // widened to clear the outer ring (up to ~12.5 from center)
+    const radius = 20; // widened to clear the outer ring (up to ~12.5 from center)
     state.camera.position.x = Math.cos(angleRef.current) * radius;
     state.camera.position.z = Math.sin(angleRef.current) * radius;
     state.camera.position.y = 6;
@@ -353,7 +353,7 @@ export function Scene3D() {
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 7, 13], fov: 50 }}>
+      <Canvas camera={{ position: [0, 9, 19], fov: 50 }}>
         <color attach="background" args={["#05070f"]} />
         <fog attach="fog" args={["#0a0e1a", 12, 26]} />
         <Stars radius={80} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />
@@ -361,16 +361,6 @@ export function Scene3D() {
         <Sparkles count={150} scale={[18, 6, 18]} size={1.5} speed={0.15} opacity={0.4} color="#8ba3ff" />
 
         <AutoOrbitCamera isPausedRef={isPausedRef} />
-
-        <mesh position={[0, -1.5, 0]} receiveShadow>
-          <cylinderGeometry args={[9, 9, 0.3, 64]} />
-          <meshStandardMaterial color="#1c2340" metalness={0.6} roughness={0.3} />
-        </mesh>
-
-        <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, -1.34, 0]}>
-          <torusGeometry args={[13, 0.05, 16, 100]} />
-          <meshStandardMaterial color="#8ba3ff" emissive="#8ba3ff" emissiveIntensity={1.2} />
-        </mesh>
 
         <spotLight
           ref={spotLightRef}

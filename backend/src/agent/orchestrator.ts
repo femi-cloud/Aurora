@@ -121,6 +121,8 @@ async function runCycle(): Promise<void> {
     console.error("[orchestrator] failed to build signals, skipping cycle:", err);
     return;
   }
+  const eligible = signals.filter((s) => (s.anomalyScore ?? 0) >= ANOMALY_SCORE_THRESHOLD);
+  console.log(`[orchestrator] cycle: ${signals.length} signals, ${eligible.length} above threshold ${ANOMALY_SCORE_THRESHOLD}`);
 
   for (const signal of signals) {
     const k = keyFor(signal.titleId, signal.region);
@@ -129,6 +131,7 @@ async function runCycle(): Promise<void> {
     if ((signal.anomalyScore ?? 0) < ANOMALY_SCORE_THRESHOLD) continue;
 
     inFlight.add(k);
+    console.log(`[orchestrator] anomaly score ${signal.anomalyScore} for ${k} — generating decision...`);
     (async () => {
       try {
         signal.dropOffPrediction = await fetchDropoffPrediction(signal.titleId, signal.region);
@@ -136,6 +139,7 @@ async function runCycle(): Promise<void> {
         decisions.set(decision.id, decision);
         broadcastDecision(decision);
         persistDecisionSnapshot(decision); // fire-and-forget, non-blocking
+        console.log(`[orchestrator] decision ${decision.id} created for ${k}: ${decision.type}`);
       } catch (err) {
         console.error(`[orchestrator] failed to generate decision for ${k}:`, err);
       } finally {

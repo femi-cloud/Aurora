@@ -1,6 +1,6 @@
 from app.clickhouse_client import get_client
 
-def get_recent_minutely_stats(window_minutes: int = 30):
+def get_recent_minutely_stats(window_minutes: int = 30, min_viewers: int = 4):
     """
     Fetches stats by (minute, title, region) over the last X minutes.
     Each row = a point the isolation forest can evaluate.
@@ -19,11 +19,11 @@ def get_recent_minutely_stats(window_minutes: int = 30):
         FROM audience_stats_agg
         WHERE minute >= now() - INTERVAL {window_minutes:UInt32} MINUTE
         GROUP BY minute, title_id, title_name, region
-        HAVING viewers >= 8
+        HAVING viewers >= {min_viewers:UInt32}
         ORDER BY minute ASC
     """
 
-    result = client.query(query, parameters={"window_minutes": window_minutes})
+    result = client.query(query, parameters={"window_minutes": window_minutes, "min_viewers": min_viewers})
     columns = result.column_names
     rows = result.result_rows
 

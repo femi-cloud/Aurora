@@ -83,7 +83,8 @@ export async function getRegionalBreakdown(titleId: string, windowMinutes = 10) 
 export async function getAnomaliesRelative(
   deviationThreshold = 0.25,
   baselineWindowMinutes = 30,
-  recentWindowMinutes = 2
+  recentWindowMinutes = 3, // widened slightly to accumulate more volume per title/region pair now that traffic is split across 20 titles instead of 6
+  minViewers = 2
 ) {
   const query = `
     WITH baseline AS (
@@ -109,25 +110,25 @@ export async function getAnomaliesRelative(
       GROUP BY title_id, title_name, region
     )
     SELECT
-      r.title_id,
-      r.title_name,
-      r.region,
+      r.title_id AS title_id,
+      r.title_name AS title_name,
+      r.region AS region,
       r.viewers AS viewer_count,
-      r.current_rate,
+      r.current_rate AS current_rate,
       b.avg_drop_off_rate AS baseline_rate,
       r.current_rate - b.avg_drop_off_rate AS deviation,
       t.poster_url AS poster_url
     FROM recent r
     INNER JOIN baseline b ON r.title_id = b.title_id AND r.region = b.region
     LEFT JOIN titles t ON t.title_id = r.title_id
-    WHERE r.viewers >= 3
+    WHERE r.viewers >= {minViewers:UInt32}
       AND (r.current_rate - b.avg_drop_off_rate) > {deviationThreshold:Float32}
     ORDER BY deviation DESC
   `;
 
   const resultSet = await clickhouse.query({
     query,
-    query_params: { deviationThreshold, baselineWindowMinutes, recentWindowMinutes },
+    query_params: { deviationThreshold, baselineWindowMinutes, recentWindowMinutes, minViewers },
     format: "JSONEachRow",
   });
 

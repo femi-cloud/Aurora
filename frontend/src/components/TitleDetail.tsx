@@ -41,6 +41,7 @@ export function TitleDetail() {
   const [error, setError] = useState<string | null>(null);
 
   const [showNaturalQuery, setShowNaturalQuery] = useState(false);
+  const [posterOpen, setPosterOpen] = useState(false);
 
   useEffect(() => {
     if (!titleId) return;
@@ -101,11 +102,17 @@ export function TitleDetail() {
 
       <div className="flex items-center gap-4 mb-8">
         {title?.poster_url && (
-          <img
-            src={title.poster_url}
-            alt={title.title_name}
-            className="w-16 h-24 object-cover rounded-lg border border-border"
-          />
+          <button
+            onClick={() => setPosterOpen(true)}
+            className="shrink-0 cursor-pointer"
+            aria-label={`View ${title.title_name} poster full size`}
+          >
+            <img
+              src={title.poster_url}
+              alt={title.title_name}
+              className="w-16 h-24 object-cover rounded-lg border border-border hover:border-marquee/50 transition-colors"
+            />
+          </button>
         )}
         <h1 className="text-2xl font-bold font-display tracking-tight text-ink">
           {title?.title_name ?? titleId}
@@ -171,6 +178,19 @@ export function TitleDetail() {
           <NaturalQuery initialQuery={`How is ${title?.title_name ?? titleId} performing?`} />
         )}
       </div>
+
+      {posterOpen && title?.poster_url && (
+        <div
+          className="fixed inset-0 bg-void/90 z-50 flex items-center justify-center cursor-pointer p-8"
+          onClick={() => setPosterOpen(false)}
+        >
+          <img
+            src={title.poster_url}
+            alt={title.title_name}
+            className="max-h-full max-w-full rounded-lg border border-border object-contain"
+          />
+        </div>
+      )}
 
       <div className="border-t border-border pt-8">
         <DecisionHistory titleId={titleId} />

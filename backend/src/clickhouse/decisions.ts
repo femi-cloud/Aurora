@@ -21,6 +21,7 @@ export async function persistDecisionSnapshot(decision: AgentDecision): Promise<
           created_at: toClickHouseDateTime(decision.createdAt),
           updated_at: toClickHouseDateTime(decision.updatedAt ?? new Date().toISOString()),
           title_id: decision.titleId,
+          region: decision.region,
           type: decision.type,
           summary: decision.summary,
           reasoning: decision.reasoning,
@@ -48,6 +49,7 @@ function mapRow(row: any): AgentDecision {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     titleId: row.title_id,
+    region: row.region,
     type: row.type,
     summary: row.summary,
     reasoning: row.reasoning,
@@ -60,7 +62,7 @@ export async function loadLatestDecisions(): Promise<AgentDecision[]> {
   try {
     const resultSet = await clickhouse.query({
       query: `
-        SELECT id, created_at, updated_at, title_id, type, summary, reasoning, reasoning_trail, status
+        SELECT id, created_at, title_id, region, type, summary, reasoning, reasoning_trail, status
         FROM aurora.agent_decisions
         ORDER BY updated_at DESC
         LIMIT 1 BY id
@@ -110,7 +112,7 @@ export async function getDecisionHistory(
   const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
 
   const latestPerId = `
-    SELECT id, created_at, updated_at, title_id, type, summary, reasoning, reasoning_trail, status
+    SELECT id, created_at, updated_at, title_id, region, type, summary, reasoning, reasoning_trail, status
     FROM aurora.agent_decisions
     ORDER BY updated_at DESC
     LIMIT 1 BY id

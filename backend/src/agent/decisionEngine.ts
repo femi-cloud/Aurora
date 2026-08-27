@@ -122,6 +122,7 @@ export async function generateDecision(
     createdAt,
     updatedAt: createdAt, // freshly created, not yet updated
     titleId: signal.titleId,
+    region: signal.region,
     type: output.type,
     summary: output.summary,
     reasoning: output.reasoning,

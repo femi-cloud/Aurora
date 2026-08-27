@@ -35,6 +35,17 @@ export interface AnomalyRow {
   poster_url: string | null;
 }
 
+export interface AnomalyLogRow {
+  id: string;
+  titleId: string;
+  region: string;
+  decisionId: string | null;
+  status: "opened" | "closed";
+  openedAt: string;
+  closedAt: string | null;
+  updatedAt: string;
+}
+
 export interface TitleMetadataRow {
   title_id: string;
   title_name: string;

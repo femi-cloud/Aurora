@@ -1,23 +1,44 @@
 import { useEffect, useState } from "react";
-import { getAnomalies } from "../api/client";
-import {
+import { getAnomalies, getAnomalyLog, getTitles } from "../api/client";import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AnomalyRow } from "../types/audience";
 import { useTitles } from "../hooks/useTitles";
+import type { AnomalyRow, AnomalyLogRow, TitleMetadataRow } from "../types/audience";
 
-interface AnomalyLogEntry extends AnomalyRow {
+interface AnomalyLogEntry {
   key: string;
+  titleId: string;
+  region: string;
+  titleName: string | null;
+  stillActive: boolean;
   detectedAt: string;
   resolvedAt: string | null;
-  stillActive: boolean;
+  // Metrics only come from /api/anomalies (the live snapshot), so they're
+  // only guaranteed while the anomaly is active. Once closed, we keep the
+  // last known values from the previous render rather than blanking them.
+  deviation: number | null;
+  currentRate: number | null;
+  baselineRate: number | null;
 }
 
 const REGIONS = ["NA", "EU", "WA", "SA", "APAC"];
+
+function formatTime(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatPct(value: number | null): string {
+  return value === null ? "—" : `${Math.round(value * 100)}%`;
+}
 
 export function Anomalies() {
   const [log, setLog] = useState<AnomalyLogEntry[]>([]);
@@ -29,47 +50,48 @@ export function Anomalies() {
 
   const filteredLog = log.filter(
     (a) =>
-      (titleFilter === "all" || a.title_id === titleFilter) &&
+      (titleFilter === "all" || a.titleId === titleFilter) &&
       (regionFilter === "all" || a.region === regionFilter)
   );
   const { titles, loading: titlesLoading } = useTitles();
 
   useEffect(() => {
     function loadAnomalies() {
-      getAnomalies()
-        .then((rows: AnomalyRow[]) => {
-          const safeRows = rows ?? [];
-          const now = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-          const activeKeys = new Set(safeRows.map((r) => `${r.title_id}-${r.region}`));
+      Promise.all([getAnomalyLog(), getAnomalies(), getTitles()])
+        .then(([logRows, metricRows, titleRows]: [AnomalyLogRow[], AnomalyRow[], TitleMetadataRow[]]) => {
+          const safeLogRows = logRows ?? [];
+          const metricsByKey = new Map(
+            (metricRows ?? []).map((r) => [`${r.title_id}-${r.region}`, r])
+          );
+          const namesByTitleId = new Map(
+            (titleRows ?? []).map((t) => [t.title_id, t.title_name])
+          );
 
           setLog((prev) => {
-            const updated = new Map(prev.map((e) => [e.key, e]));
+            const prevByKey = new Map(prev.map((e) => [e.key, e]));
 
-            for (const row of safeRows) {
-              const key = `${row.title_id}-${row.region}`;
-              const existing = updated.get(key);
-              updated.set(key, {
-                ...row,
+            const merged = safeLogRows.map((row): AnomalyLogEntry => {
+              const key = `${row.titleId}-${row.region}`;
+              const metrics = metricsByKey.get(key);
+              const previous = prevByKey.get(key);
+
+              return {
                 key,
-                detectedAt: existing?.detectedAt ?? now, 
-                resolvedAt: null, 
-                stillActive: true,
-              });
-            }
+                titleId: row.titleId,
+                region: row.region,
+                titleName: namesByTitleId.get(row.titleId) ?? metrics?.title_name ?? previous?.titleName ?? null,
+                stillActive: row.status === "opened",
+                detectedAt: row.openedAt,
+                resolvedAt: row.closedAt,
+                deviation: metrics?.deviation ?? previous?.deviation ?? null,
+                currentRate: metrics?.current_rate ?? previous?.currentRate ?? null,
+                baselineRate: metrics?.baseline_rate ?? previous?.baselineRate ?? null,
+              };
+            });
 
-            for (const [key, entry] of updated) {
-              if (!activeKeys.has(key)) {
-                updated.set(key, {
-                  ...entry,
-                  resolvedAt: entry.resolvedAt ?? now, 
-                  stillActive: false,
-                });
-              }
-            }
-
-            return Array.from(updated.values())
+            return merged
               .sort((a, b) => b.detectedAt.localeCompare(a.detectedAt))
-              .slice(0, 15); 
+              .slice(0, 15);
           });
 
           setError(null);
@@ -143,7 +165,7 @@ export function Anomalies() {
 
       {!loading && !error && filteredLog.length > 0 && (
         <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-            {filteredLog.map((anomaly) => (
+          {filteredLog.map((anomaly) => (
             <div
               key={anomaly.key}
               className={`rounded-lg p-4 flex items-center justify-between border transition-opacity ${
@@ -154,7 +176,7 @@ export function Anomalies() {
             >
               <div>
                 <p className="font-bold flex items-center gap-2 font-mono">
-                  {anomaly.title_name}
+                  {anomaly.titleName ?? anomaly.titleId}
                   {anomaly.stillActive ? (
                     <span className="text-xs bg-tally text-void px-2 py-0.5 rounded font-semibold">ACTIVE</span>
                   ) : (
@@ -162,17 +184,16 @@ export function Anomalies() {
                   )}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Region: {anomaly.region} · detected at {anomaly.detectedAt}
-                  {anomaly.resolvedAt && ` · resolved at ${anomaly.resolvedAt}`}
+                  Region: {anomaly.region} · detected at {formatTime(anomaly.detectedAt) ?? "—"}
+                  {anomaly.resolvedAt && ` · resolved at ${formatTime(anomaly.resolvedAt)}`}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-tally font-bold font-mono">
-                  +{Math.round(anomaly.deviation * 100)} pts
+                  {anomaly.deviation === null ? "—" : `+${Math.round(anomaly.deviation * 100)} pts`}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {Math.round(anomaly.current_rate * 100)}% vs{" "}
-                  {Math.round(anomaly.baseline_rate * 100)}% baseline
+                  {formatPct(anomaly.currentRate)} vs {formatPct(anomaly.baselineRate)} baseline
                 </p>
               </div>
             </div>

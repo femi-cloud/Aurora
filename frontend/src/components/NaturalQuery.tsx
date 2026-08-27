@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { API_BASE_URL } from "../api/client.ts";
 
 interface NaturalQueryResult {
@@ -7,6 +7,10 @@ interface NaturalQueryResult {
   explanation: string;
   rows: unknown[];
   answer: string;
+}
+
+interface NaturalQueryProps {
+  initialQuery?: string;
 }
 
 function renderInline(text: string) {
@@ -20,16 +24,15 @@ function renderInline(text: string) {
   );
 }
 
-export function NaturalQuery() {
-  const [question, setQuestion] = useState("");
+export function NaturalQuery({ initialQuery }: NaturalQueryProps = {}) {
+  const [question, setQuestion] = useState(initialQuery ?? "");
   const [result, setResult] = useState<NaturalQueryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSql, setShowSql] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!question.trim()) return;
+  async function runQuery(q: string) {
+    if (!q.trim()) return;
 
     setLoading(true);
     setError(null);
@@ -39,7 +42,7 @@ export function NaturalQuery() {
       const res = await fetch(`${API_BASE_URL}/api/query/natural`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question: q }),
       });
       if (!res.ok) {
         const errData = await res.json();
@@ -53,6 +56,21 @@ export function NaturalQuery() {
       setLoading(false);
     }
   }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    runQuery(question);
+  }
+
+  // Auto-submits once on mount when the component is opened with a
+  // pre-filled question (e.g. "Ask about this title" from TitleDetail).
+  useEffect(() => {
+    if (initialQuery) {
+      setQuestion(initialQuery);
+      runQuery(initialQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="mt-8">

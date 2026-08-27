@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import { createServer } from "node:http";
 import { testClickhouseConnection } from "./clickhouse/client";
+import { getAnomalyLog } from "./clickhouse/anomalyEvents.js";
 import { attachWebSocketServer } from "./ws/server.js";
 import { startOrchestrator, getDecisions, getSettings, updateSettings } from "./agent/orchestrator.js";
 import type { AgentSettings } from "./clickhouse/settings.js";
@@ -19,7 +20,7 @@ import {
 dotenv.config();
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: ["http://localhost:5173", "https://aurora-frontend-ten.vercel.app"] }));
 app.use(express.json());
 
 app.get("/health", (req, res) => {
@@ -79,6 +80,16 @@ app.get("/api/anomalies", async (req, res) => {
   } catch (err) {
     console.error("[api/anomalies] error:", err);
     res.status(500).json({ error: "Unable to fetch anomalies" });
+  }
+});
+
+app.get("/api/anomalies/log", async (req, res) => {
+  try {
+    const data = await getAnomalyLog();
+    res.json(data);
+  } catch (err) {
+    console.error("[api/anomalies/log] error:", err);
+    res.status(500).json({ error: "Unable to fetch anomaly log" });
   }
 });
 

@@ -16,6 +16,7 @@ import { getTimeline, getRegionalBreakdown } from "../api/client";
 import type { TimelineRow, RegionalRow } from "../types/audience";
 import { useTitles } from "../hooks/useTitles";
 import { DecisionHistory } from "./DecisionHistory";
+import { NaturalQuery } from "./NaturalQuery";
 
 interface TimelinePoint {
   minute: string;
@@ -38,6 +39,8 @@ export function TitleDetail() {
   const [regionalData, setRegionalData] = useState<RegionalPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [showNaturalQuery, setShowNaturalQuery] = useState(false);
 
   useEffect(() => {
     if (!titleId) return;
@@ -155,6 +158,19 @@ export function TitleDetail() {
           </div>
         </div>
       )}
+
+      <div className="border-t border-border pt-8 mb-8">
+        {!showNaturalQuery ? (
+          <button
+            onClick={() => setShowNaturalQuery(true)}
+            className="border border-marquee/50 bg-marquee/10 hover:bg-marquee/20 text-marquee font-mono text-sm font-semibold px-6 py-2 rounded-lg transition-colors"
+          >
+            Ask about this title
+          </button>
+        ) : (
+          <NaturalQuery initialQuery={`How is ${title?.title_name ?? titleId} performing?`} />
+        )}
+      </div>
 
       <div className="border-t border-border pt-8">
         <DecisionHistory titleId={titleId} />

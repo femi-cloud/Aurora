@@ -2,6 +2,7 @@ import { getCurrentSnapshot, getAnomaliesRelative } from "../clickhouse/queries.
 import { generateDecision, type TitleSignal } from "./decisionEngine.js";
 import { broadcastDecision, onClientAction } from "../ws/server.js";
 import { persistDecisionSnapshot, loadLatestDecisions } from "../clickhouse/decisions.js";
+import { openAnomalyEvent, closeAnomalyEvent } from "../clickhouse/anomalyEvents.js";
 import type { AgentDecision } from "../../../packages/shared/src/types.js";
 import { loadSettings, persistSettings, type AgentSettings } from "../clickhouse/settings.js";
 
@@ -140,6 +141,7 @@ async function runCycle(): Promise<void> {
     if ((signal.anomalyScore ?? 0) < currentSettings.anomalyScoreThreshold) continue;
 
     inFlight.add(k);
+    openAnomalyEvent(k, signal.titleId, signal.region); // fire-and-forget, non-blocking
     console.log(`[orchestrator] anomaly score ${signal.anomalyScore} for ${k} — generating decision...`);
     (async () => {
       try {
@@ -177,6 +179,13 @@ export async function startOrchestrator(): Promise<void> {
     decision.updatedAt = new Date().toISOString();
     broadcastDecision(decision); // rebroadcasts the new status to all clients
     persistDecisionSnapshot(decision); // fire-and-forget, non-blocking
+
+    if (decision.region) {
+      const k = keyFor(decision.titleId, decision.region);
+      closeAnomalyEvent(k, decision.titleId, decision.region, decision.id);
+    } else {
+      console.warn(`[orchestrator] decision ${decision.id} has no region (legacy record) — skipping anomaly_events closure`);
+    }
   });
 
   loadLatestDecisions().then((rows) => {

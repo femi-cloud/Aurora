@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Select,
   SelectContent,
@@ -18,15 +19,7 @@ import {
 } from "recharts";
 import { getTimeline } from "../api/client";
 import type { TimelineRow } from "../types/audience";
-
-const TITLES = [
-  { id: "aurora-01", name: "Nightfall Protocol" },
-  { id: "aurora-02", name: "The Last Reel" },
-  { id: "aurora-03", name: "Glass Horizon" },
-  { id: "aurora-04", name: "Static Bloom" },
-  { id: "aurora-05", name: "Echo Chamber" },
-  { id: "aurora-06", name: "Paper Moons" },
-];
+import { useTitles } from "../hooks/useTitles";
 
 interface ChartPoint {
   minute: string;
@@ -35,12 +28,19 @@ interface ChartPoint {
 }
 
 export function Timeline() {
-  const [selectedTitle, setSelectedTitle] = useState(TITLES[0].id);
+  const { titles, loading: titlesLoading } = useTitles();
+  const [selectedTitle, setSelectedTitle] = useState("");
   const [data, setData] = useState<ChartPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pick the first title once the catalog loads — nothing to fetch before that.
   useEffect(() => {
+    if (!selectedTitle && titles.length > 0) setSelectedTitle(titles[0].title_id);
+  }, [titles, selectedTitle]);
+
+  useEffect(() => {
+    if (!selectedTitle) return;
     function loadTimeline() {
         getTimeline(selectedTitle)
         .then((rows: TimelineRow[]) => {
@@ -79,23 +79,34 @@ export function Timeline() {
     <div className="mt-8">
       <div className="flex items-center gap-4 mb-4">
         <h2 className="text-xl font-bold font-display tracking-tight text-ink">Timeline</h2>
+        {selectedTitle && (
+          <Link
+            to={`/titles/${selectedTitle}`}
+            className="font-mono text-xs text-muted-foreground hover:text-marquee transition-colors"
+          >
+            View details →
+          </Link>
+        )}
         <Select
           value={selectedTitle}
           onValueChange={(value) => {
             if (value) setSelectedTitle(value);
           }}
+          disabled={titlesLoading}
         >
-          <SelectTrigger className="w-55 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
-            <SelectValue />
+          <SelectTrigger className="w-55 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors disabled:opacity-50">
+            <SelectValue placeholder={titlesLoading ? "Loading titles..." : undefined}>
+              {titles.find((t) => t.title_id === selectedTitle)?.title_name ?? selectedTitle}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
-            {TITLES.map((title) => (
+            {titles.map((title) => (
               <SelectItem
-                key={title.id}
-                value={title.id}
+                key={title.title_id}
+                value={title.title_id}
                 className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee data-[state=checked]:text-marquee data-[state=checked]:font-semibold"
               >
-                {title.name}
+                {title.title_name}
               </SelectItem>
             ))}
           </SelectContent>

@@ -16,6 +16,7 @@ export interface DecisionStep {
 export interface AgentDecision {
   id: string;
   createdAt: string;
+  updatedAt: string;
   titleId: string;
   type: "prioritize_dubbing" | "recut_scene" | "boost_market" | "monitor";
   summary: string;

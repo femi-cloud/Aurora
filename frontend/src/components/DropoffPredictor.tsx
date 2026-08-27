@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { API_BASE_URL } from "../api/client.ts";
-
-
+import { useTitles } from "../hooks/useTitles";
 import {
   Select,
   SelectContent,
@@ -11,14 +10,7 @@ import {
 } from "@/components/ui/select";
 import { RadialGauge } from "./RadialGauge";
 
-const TITLES = [
-  { id: "aurora-01", name: "Nightfall Protocol" },
-  { id: "aurora-02", name: "The Last Reel" },
-  { id: "aurora-03", name: "Glass Horizon" },
-  { id: "aurora-04", name: "Static Bloom" },
-  { id: "aurora-05", name: "Echo Chamber" },
-  { id: "aurora-06", name: "Paper Moons" },
-];
+
 
 const REGIONS = ["NA", "EU", "WA", "SA", "APAC"];
 const DEVICES = ["mobile", "desktop", "tv", "tablet"];
@@ -31,12 +23,17 @@ interface PredictionResult {
 }
 
 export function DropoffPredictor() {
-  const [titleId, setTitleId] = useState(TITLES[0].id);
+  const { titles, loading: titlesLoading } = useTitles();
+  const [titleId, setTitleId] = useState("");
   const [region, setRegion] = useState(REGIONS[0]);
   const [device, setDevice] = useState(DEVICES[0]);
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!titleId && titles.length > 0) setTitleId(titles[0].title_id);
+  }, [titles, titleId]);
 
   async function handlePredict() {
     setLoading(true);
@@ -68,18 +65,21 @@ export function DropoffPredictor() {
           onValueChange={(value) => {
             if (value) setTitleId(value);
           }}
+          disabled={titlesLoading}
         >
-          <SelectTrigger className="w-55 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
-            <SelectValue />
+          <SelectTrigger className="w-55 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors disabled:opacity-50">
+            <SelectValue placeholder={titlesLoading ? "Loading titles..." : undefined}>
+              {titles.find((t) => t.title_id === titleId)?.title_name ?? titleId}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
-            {TITLES.map((t) => (
+            {titles.map((t) => (
               <SelectItem
-                key={t.id}
-                value={t.id}
+                key={t.title_id}
+                value={t.title_id}
                 className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee data-[state=checked]:text-marquee data-[state=checked]:font-semibold"
               >
-                {t.name}
+                {t.title_name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -144,7 +144,7 @@ export function DropoffPredictor() {
         <div className="bg-surface border border-border rounded-lg p-4 flex items-center gap-4">
           <RadialGauge percentage={percentage ?? 0} size={72} />
           <p className="text-sm text-muted-foreground">
-            Drop-off probability for {TITLES.find((t) => t.id === titleId)?.name} · {region} · {device}
+            Drop-off probability for {titles.find((t) => t.title_id === titleId)?.title_name} · {region} · {device}
           </p>
         </div>
       )}

@@ -19,7 +19,7 @@ export async function persistDecisionSnapshot(decision: AgentDecision): Promise<
         {
           id: decision.id,
           created_at: toClickHouseDateTime(decision.createdAt),
-          updated_at: toClickHouseDateTime(new Date().toISOString()),
+          updated_at: toClickHouseDateTime(decision.updatedAt ?? new Date().toISOString()),
           title_id: decision.titleId,
           type: decision.type,
           summary: decision.summary,
@@ -41,11 +41,26 @@ export async function persistDecisionSnapshot(decision: AgentDecision): Promise<
  * Loads the latest snapshot per decision id — used once at backend
  * startup to reseed the in-memory Map after a restart.
  */
+// APRÈS
+function mapRow(row: any): AgentDecision {
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    titleId: row.title_id,
+    type: row.type,
+    summary: row.summary,
+    reasoning: row.reasoning,
+    reasoningTrail: JSON.parse(row.reasoning_trail || "[]"),
+    status: row.status,
+  };
+}
+
 export async function loadLatestDecisions(): Promise<AgentDecision[]> {
   try {
     const resultSet = await clickhouse.query({
       query: `
-        SELECT id, created_at, title_id, type, summary, reasoning, reasoning_trail, status
+        SELECT id, created_at, updated_at, title_id, type, summary, reasoning, reasoning_trail, status
         FROM aurora.agent_decisions
         ORDER BY updated_at DESC
         LIMIT 1 BY id
@@ -53,18 +68,82 @@ export async function loadLatestDecisions(): Promise<AgentDecision[]> {
       format: "JSONEachRow",
     });
     const rows = (await resultSet.json()) as any[];
-    return rows.map((row) => ({
-      id: row.id,
-      createdAt: row.created_at,
-      titleId: row.title_id,
-      type: row.type,
-      summary: row.summary,
-      reasoning: row.reasoning,
-      reasoningTrail: JSON.parse(row.reasoning_trail || "[]"),
-      status: row.status,
-    }));
+    return rows.map(mapRow);
   } catch (err) {
     console.error("[decisions] failed to load decisions from ClickHouse:", err);
-    return []; // degrades gracefully — the Map just starts empty, same as today
+    return [];
+  }
+}
+
+export interface DecisionHistoryFilters {
+  status?: AgentDecision["status"];
+  titleId?: string;
+  limit: number;
+  offset: number;
+}
+
+export interface DecisionHistoryResult {
+  decisions: AgentDecision[];
+  total: number;
+}
+
+/**
+ * Paginated, filterable read of decision history — one row per decision
+ * (its latest status), most recent first. Used by the "Decision History"
+ * dashboard view, distinct from loadLatestDecisions (full dump, boot-only).
+ */
+export async function getDecisionHistory(
+  filters: DecisionHistoryFilters
+): Promise<DecisionHistoryResult> {
+  const { status, titleId, limit, offset } = filters;
+
+  const whereClauses: string[] = [];
+  const queryParams: Record<string, unknown> = { limit, offset };
+  if (status) {
+    whereClauses.push("status = {status:String}");
+    queryParams.status = status;
+  }
+  if (titleId) {
+    whereClauses.push("title_id = {titleId:String}");
+    queryParams.titleId = titleId;
+  }
+  const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+  const latestPerId = `
+    SELECT id, created_at, updated_at, title_id, type, summary, reasoning, reasoning_trail, status
+    FROM aurora.agent_decisions
+    ORDER BY updated_at DESC
+    LIMIT 1 BY id
+  `;
+
+  try {
+    const [rowsResult, countResult] = await Promise.all([
+      clickhouse.query({
+        query: `
+          SELECT * FROM (${latestPerId})
+          ${whereSql}
+          ORDER BY updated_at DESC
+          LIMIT {limit:UInt32} OFFSET {offset:UInt32}
+        `,
+        query_params: queryParams,
+        format: "JSONEachRow",
+      }),
+      clickhouse.query({
+        query: `SELECT count() AS total FROM (${latestPerId}) ${whereSql}`,
+        query_params: queryParams,
+        format: "JSONEachRow",
+      }),
+    ]);
+
+    const rows = (await rowsResult.json()) as any[];
+    const countRows = (await countResult.json()) as any[];
+
+    return {
+      decisions: rows.map(mapRow),
+      total: Number(countRows[0]?.total ?? 0),
+    };
+  } catch (err) {
+    console.error("[decisions] failed to load decision history from ClickHouse:", err);
+    return { decisions: [], total: 0 };
   }
 }

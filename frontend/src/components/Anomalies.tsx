@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { AnomalyRow } from "../types/audience";
+import { useTitles } from "../hooks/useTitles";
 
 interface AnomalyLogEntry extends AnomalyRow {
   key: string;
@@ -15,29 +16,6 @@ interface AnomalyLogEntry extends AnomalyRow {
   resolvedAt: string | null;
   stillActive: boolean;
 }
-
-const TITLES = [
-  { id: "aurora-01", name: "Nightfall Protocol" },
-  { id: "aurora-02", name: "The Last Reel" },
-  { id: "aurora-03", name: "Glass Horizon" },
-  { id: "aurora-04", name: "Static Bloom" },
-  { id: "aurora-05", name: "Echo Chamber" },
-  { id: "aurora-06", name: "Paper Moons" },
-  { id: "aurora-07", name: "Interstellar" },
-  { id: "aurora-08", name: "The Matrix" },
-  { id: "aurora-09", name: "Pulp Fiction" },
-  { id: "aurora-10", name: "The Dark Knight" },
-  { id: "aurora-11", name: "Everything Everywhere All at Once" },
-  { id: "aurora-12", name: "Whiplash" },
-  { id: "aurora-13", name: "Spider-Man: Into the Spider-Verse" },
-  { id: "aurora-14", name: "The Grand Budapest Hotel" },
-  { id: "aurora-15", name: "Dune" },
-  { id: "aurora-16", name: "The Social Network" },
-  { id: "aurora-17", name: "Knives Out" },
-  { id: "aurora-18", name: "Coco" },
-  { id: "aurora-19", name: "Oppenheimer" },
-  { id: "aurora-20", name: "Barbie" },
-];
 
 const REGIONS = ["NA", "EU", "WA", "SA", "APAC"];
 
@@ -54,6 +32,7 @@ export function Anomalies() {
       (titleFilter === "all" || a.title_id === titleFilter) &&
       (regionFilter === "all" || a.region === regionFilter)
   );
+  const { titles, loading: titlesLoading } = useTitles();
 
   useEffect(() => {
     function loadAnomalies() {
@@ -112,19 +91,23 @@ export function Anomalies() {
 
         <Select value={titleFilter} onValueChange={(value) => value && setTitleFilter(value)}>
           <SelectTrigger className="w-45 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
-            <SelectValue />
+            <SelectValue placeholder={titlesLoading ? "Loading titles..." : undefined}>
+              {titleFilter === "all"
+                ? "All titles"
+                : titles.find((t) => t.title_id === titleFilter)?.title_name ?? titleFilter}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
             <SelectItem value="all" className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee">
               All titles
             </SelectItem>
-            {TITLES.map((t) => (
+            {titles.map((t) => (
               <SelectItem
-                key={t.id}
-                value={t.id}
+                key={t.title_id}
+                value={t.title_id}
                 className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee data-[state=checked]:text-marquee data-[state=checked]:font-semibold"
               >
-                {t.name}
+                {t.title_name}
               </SelectItem>
             ))}
           </SelectContent>

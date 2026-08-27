@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Settings as SettingsIcon } from "lucide-react";
+import { useNavigate, BrowserRouter, Routes, Route } from "react-router-dom";
 import { Snapshot } from "./components/Snapshot";
 import { Timeline } from "./components/Timeline";
 import { RegionalBreakdown } from "./components/RegionalBreakdown";
@@ -10,6 +12,10 @@ import { ThemeSwitch } from "./components/ThemeSwitch";
 import { MarqueeLights } from "./components/MarqueeLights";
 import { MarqueeTicker } from "./components/MarqueeTicker";
 import { Scene3D } from "./components/Scene3D";
+import { DecisionHistory } from "./components/DecisionHistory";
+import { TitleDetail } from "./components/TitleDetail";
+import { SettingsPage } from "./components/SettingsPage";
+
 
 
 const AURORA_LETTERS = [
@@ -52,19 +58,22 @@ function SectionHeading({
 }
 
 function App() {
-  const [mode, setMode] = useState<"2d" | "3d">("2d");
+  const [mode, setMode] = useState<"2d" | "3d" | "history">("2d");
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
 
-  function handleModeToggle() {
-    setIsTransitioning(true);
-    setOverlayOpacity(1);
-    setTimeout(() => {
-      setMode((m) => (m === "2d" ? "3d" : "2d"));
-      setOverlayOpacity(0);
-      setTimeout(() => setIsTransitioning(false), 300);
-    }, 300);
-  }
+  const navigate = useNavigate();
+
+  function setModeWithTransition(next: typeof mode) {
+  if (next === mode) return;
+  setIsTransitioning(true);
+  setOverlayOpacity(1);
+  setTimeout(() => {
+    setMode(next);
+    setOverlayOpacity(0);
+    setTimeout(() => setIsTransitioning(false), 300);
+  }, 300);
+}
 
   return (
     <div className="min-h-screen bg-void text-ink px-6 py-8 lg:px-10 max-w-[1600px] mx-auto">
@@ -110,29 +119,28 @@ function App() {
                 <MarqueeLights count={3} size="sm" />
                 Live
               </span>
-              <button
-                onClick={handleModeToggle}
-                className="group flex items-center gap-2.5"
-              >
-                <span className="text-xs font-mono text-muted-foreground group-hover:text-marquee transition-colors [font-variant-caps:all-small-caps]">
-                  {mode === "2d" ? "Enter the Screening Room" : "Exit to Dashboard"}
-                </span>
-                <span
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full border border-border transition-colors duration-300 ${
-                    mode === "3d" ? "bg-marquee/20" : "bg-surface"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 rounded-full shadow-md transition-transform duration-300 ${
-                      mode === "3d" ? "translate-x-6 bg-marquee" : "translate-x-1 bg-muted-foreground"
+
+              <div className="flex items-center gap-1 font-mono text-xs [font-variant-caps:all-small-caps]">
+                {(["2d", "3d", "history"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setModeWithTransition(m)}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      mode === m
+                        ? "bg-marquee/15 text-marquee"
+                        : "text-muted-foreground hover:text-marquee"
                     }`}
-                    style={
-                      mode === "3d"
-                        ? { animation: "neon-flicker 3s ease-in-out infinite" }
-                        : undefined
-                    }
-                  />
-                </span>
+                  >
+                    {m === "2d" ? "Dashboard" : m === "3d" ? "Screening Room" : "History"}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => navigate("/settings")}
+                className="text-muted-foreground hover:text-marquee transition-colors"
+                aria-label="Settings"
+              >
+                <SettingsIcon className="w-4 h-4" />
               </button>
               <ThemeSwitch />
             </div>
@@ -144,6 +152,8 @@ function App() {
 
       {mode === "3d" ? (
         <Scene3D />
+      ) : mode === "history" ? (
+        <DecisionHistory />
       ) : (
         <>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
@@ -190,4 +200,14 @@ function App() {
   );
 }
 
-export default App;
+export default function Root() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<App />} />
+        <Route path="/titles/:titleId" element={<TitleDetail />} />
+        <Route path="/settings" element={<SettingsPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}

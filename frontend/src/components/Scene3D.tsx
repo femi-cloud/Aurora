@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Vector3 } from "three";
 import * as THREE from "three";
@@ -197,6 +198,7 @@ export function Scene3D() {
   const isPausedRef = useRef(false);
   const resumeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { decisions, sendAction } = useAgentSocket();
+  const navigate = useNavigate();
 
   const spotLightRef = useRef<THREE.SpotLight>(null);
   const spotLightTargetRef = useRef(new THREE.Object3D());
@@ -207,15 +209,28 @@ export function Scene3D() {
     }
   }, []);
 
-  const latestDecision = decisions[0] ?? null;
-  const agentTitleIndex = latestDecision
-    ? TITLES.indexOf(latestDecision.titleId)
+  const pendingDecisions = decisions.filter((d) => d.status === "pending");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const clampedIndex = Math.min(activeIndex, Math.max(pendingDecisions.length - 1, 0));
+  const activeDecision = pendingDecisions[clampedIndex] ?? null;
+
+  const [toast, setToast] = useState<{ type: "accept" | "reject"; title: string } | null>(null);
+
+  const agentTitleIndex = activeDecision
+    ? TITLES.indexOf(activeDecision.titleId)
     : -1;
   const agentTargetPosition: [number, number, number] =
     agentTitleIndex !== -1
       ? titlePosition(agentTitleIndex, TITLES.length)
       : [0, 2, 0];
-  const isAgentActive = latestDecision?.status === "pending";
+  const isAgentActive = activeDecision !== null;
+
+  function handleAction(decision: NonNullable<typeof activeDecision>, action: "accept" | "reject") {
+    sendAction(decision.id, action);
+    setToast({ type: action, title: titleMeta[decision.titleId]?.name ?? decision.titleId });
+    setTimeout(() => setToast(null), 2800);
+    setActiveIndex(0); // move to whichever pending decision is now first, once this one clears
+  }
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -300,7 +315,7 @@ export function Scene3D() {
   }, []);
 
   return (
-    <div ref={containerRef} className="relative h-150 rounded-2xl border border-border bg-surface/40 overflow-hidden">
+    <div ref={containerRef} className="relative h-250 rounded-2xl border border-border bg-surface/40 overflow-hidden">
       <button
         onClick={toggleFullscreen}
         className="absolute top-3 right-3 z-10 text-xs font-mono px-3 py-1.5 rounded-lg border border-border bg-surface/80 hover:border-marquee/50 transition-colors text-ink backdrop-blur-sm"
@@ -308,24 +323,47 @@ export function Scene3D() {
         {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
       </button>
 
-      {isAgentActive && latestDecision && (
+        {isAgentActive && activeDecision && (
         <div className="absolute bottom-4 left-4 z-10 w-80 rounded-xl border border-border bg-surface/95 backdrop-blur-sm shadow-2xl p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-2 h-2 rounded-full bg-marquee animate-pulse" />
-            <span className="text-xs font-mono uppercase tracking-wide text-marquee">
-              Agent finding
-            </span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-marquee animate-pulse" />
+              <span className="text-xs font-mono uppercase tracking-wide text-marquee">
+                Agent finding
+              </span>
+            </div>
+            {pendingDecisions.length > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setActiveIndex((i) => (i - 1 + pendingDecisions.length) % pendingDecisions.length)}
+                  className="w-5 h-5 flex items-center justify-center rounded border border-border text-muted-foreground hover:border-marquee/50 hover:text-marquee transition-colors text-xs"
+                  aria-label="Previous pending finding"
+                >
+                  ‹
+                </button>
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {clampedIndex + 1}/{pendingDecisions.length}
+                </span>
+                <button
+                  onClick={() => setActiveIndex((i) => (i + 1) % pendingDecisions.length)}
+                  className="w-5 h-5 flex items-center justify-center rounded border border-border text-muted-foreground hover:border-marquee/50 hover:text-marquee transition-colors text-xs"
+                  aria-label="Next pending finding"
+                >
+                  ›
+                </button>
+              </div>
+            )}
           </div>
 
           <p className="font-bold font-mono text-sm text-ink mb-1">
-            {titleMeta[latestDecision.titleId]?.name ?? latestDecision.titleId}
+            {titleMeta[activeDecision.titleId]?.name ?? activeDecision.titleId}
           </p>
 
-          <p className="text-sm text-ink mb-2">{latestDecision.summary}</p>
+          <p className="text-sm text-ink mb-2">{activeDecision.summary}</p>
 
-          {latestDecision.reasoningTrail?.length > 0 && (
+          {activeDecision.reasoningTrail?.length > 0 && (
             <ol className="space-y-1.5 mb-3 border-l border-border/60 pl-3">
-              {latestDecision.reasoningTrail.map((step) => (
+              {activeDecision.reasoningTrail.map((step) => (
                 <li key={step.id} className="text-xs">
                   <span className="font-mono uppercase tracking-wide text-marquee/80 mr-1.5">
                     {step.label}
@@ -338,18 +376,30 @@ export function Scene3D() {
 
           <div className="flex gap-2">
             <button
-              onClick={() => sendAction(latestDecision.id, "accept")}
+              onClick={() => handleAction(activeDecision, "accept")}
               className="flex-1 text-xs font-mono py-1.5 rounded-lg bg-scope text-void font-semibold hover:opacity-90 transition-opacity"
             >
               Accept
             </button>
             <button
-              onClick={() => sendAction(latestDecision.id, "reject")}
+              onClick={() => handleAction(activeDecision, "reject")}
               className="flex-1 text-xs font-mono py-1.5 rounded-lg border border-border text-ink hover:border-tally/50 transition-colors"
             >
               Reject
             </button>
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div
+          className={`absolute bottom-4 right-4 z-10 rounded-lg border px-4 py-2.5 text-xs font-mono shadow-2xl backdrop-blur-sm transition-opacity ${
+            toast.type === "accept"
+              ? "bg-scope/15 border-scope/40 text-scope"
+              : "bg-tally/15 border-tally/40 text-tally"
+          }`}
+        >
+          {toast.type === "accept" ? "Accepted" : "Rejected"} — {toast.title}
         </div>
       )}
 
@@ -409,7 +459,10 @@ export function Scene3D() {
               {meta?.posterUrl && (
                 <Billboard position={[0, radius + 1.6, 0]}>
                   <Html center distanceFactor={8} transform>
-                    <div className="group relative w-24 cursor-pointer pointer-events-auto">
+                    <div
+                      className="group relative w-24 cursor-pointer pointer-events-auto"
+                      onClick={() => navigate(`/titles/${titleId}`)}
+                    >
                       <div className="relative overflow-hidden rounded-lg shadow-2xl ring-1 ring-white/10 transition-transform duration-300 ease-out group-hover:scale-110 group-hover:-translate-y-1">
                         <img
                           src={meta.posterUrl}

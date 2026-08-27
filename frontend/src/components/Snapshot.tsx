@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Select,
   SelectContent,
@@ -9,6 +10,7 @@ import {
 import { getSnapshot } from "../api/client";
 import type { SnapshotRow } from "../types/audience";
 import { RadialGauge } from "./RadialGauge";
+
 
 const WINDOWS = [
   { value: "5", label: "Last 5 min" },
@@ -25,6 +27,8 @@ export function Snapshot() {
   const [error, setError] = useState<string | null>(null);
   const [windowMinutes, setWindowMinutes] = useState("15");
   const [page, setPage] = useState(1);
+  
+  const navigate = useNavigate();
 
   useEffect(() => {
     function loadSnapshot() {
@@ -83,7 +87,8 @@ export function Snapshot() {
         return (
           <div
             key={`${row.title_id}-${row.region}`}
-            className="bg-surface border border-border rounded-lg p-4 hover:border-marquee/40 transition-colors"
+            onClick={() => navigate(`/titles/${row.title_id}`)}
+            className="bg-surface border border-border rounded-lg p-4 hover:border-marquee/40 transition-colors cursor-pointer"
           >
             <div className="flex items-center justify-between mb-2">
               <p className="font-mono font-semibold text-sm truncate">{row.title_name}</p>

@@ -11,6 +11,7 @@ const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 const groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
 
 type Provider = "gemini" | "groq";
+type Priority = "interactive" | "background";
 interface ChainEntry {
   provider: Provider;
   model: string;
@@ -46,12 +47,12 @@ const MIN_CALL_INTERVAL_MS = 13000;
 const lastCallAtByKey = new Map<string, number>();
 const queueByKey = new Map<string, Promise<unknown>>();
 
-function keyFor(entry: ChainEntry): string {
-  return `${entry.provider}:${entry.model}`;
+function keyFor(entry: ChainEntry, priority: Priority): string {
+  return `${priority}:${entry.provider}:${entry.model}`;
 }
 
-function throttledFor(entry: ChainEntry): Promise<void> {
-  const key = keyFor(entry);
+function throttledFor(entry: ChainEntry, priority: Priority): Promise<void> {
+  const key = keyFor(entry, priority);
   const previous = queueByKey.get(key) ?? Promise.resolve();
   const run = previous.then(async () => {
     const lastCallAt = lastCallAtByKey.get(key) ?? 0;
@@ -72,16 +73,19 @@ function isQuotaError(err: unknown): boolean {
  * in modelChain in order, moving on when the current one returns 429
  * (quota exhausted). Throws the last error if the whole chain is exhausted.
  */
-async function withFallback<T>(callEntry: (entry: ChainEntry) => Promise<T>): Promise<T> {
+async function withFallback<T>(
+  callEntry: (entry: ChainEntry) => Promise<T>,
+  priority: Priority = "background"
+): Promise<T> {
   let lastError: unknown;
   for (const entry of modelChain) {
-    await throttledFor(entry);
+    await throttledFor(entry, priority);
     try {
       return await callEntry(entry);
     } catch (err) {
       lastError = err;
       if (!isQuotaError(err)) throw err; // non-quota error: don't burn through the chain for nothing
-      console.warn(`[gemini] ${keyFor(entry)} quota exhausted, trying next in chain`);
+      console.warn(`[gemini] ${keyFor(entry, priority)} quota exhausted, trying next in chain`);
     }
   }
   throw lastError;
@@ -91,7 +95,7 @@ async function withFallback<T>(callEntry: (entry: ChainEntry) => Promise<T>): Pr
  * Simple call: sends a text prompt, returns the text response.
  * Used as a connectivity test before wiring decisionEngine.ts to it.
  */
-export async function askGemini(prompt: string): Promise<string> {
+export async function askGemini(prompt: string, priority: Priority = "background"): Promise<string> {
   return withFallback(async (entry) => {
     if (entry.provider === "gemini") {
       const response = await ai.models.generateContent({ model: entry.model, contents: prompt });
@@ -109,7 +113,7 @@ export async function askGemini(prompt: string): Promise<string> {
  * Call the model with a forced JSON output matching a schema.
  * Used by decisionEngine.ts to get reliable AgentDecision objects.
  */
-export async function askGeminiJSON<T>(prompt: string, responseSchema: object): Promise<T> {
+export async function askGeminiJSON<T>(prompt: string, responseSchema: object, priority: Priority = "background"): Promise<T> {
   const text = await withFallback(async (entry) => {
     if (entry.provider === "gemini") {
       const response = await ai.models.generateContent({
@@ -133,7 +137,7 @@ export async function askGeminiJSON<T>(prompt: string, responseSchema: object): 
       response_format: { type: "json_object" },
     });
     return completion.choices[0]?.message?.content ?? "{}";
-  });
+  }, priority);
 
   return JSON.parse(text) as T;
 }

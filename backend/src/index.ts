@@ -131,7 +131,7 @@ app.post("/api/query/natural", async (req, res) => {
     if (!question || typeof question !== "string") {
       return res.status(400).json({ error: "The 'question' field is required" });
     }
-    const result = await runNaturalQuery(question);
+    const result = await runNaturalQuery(question, "interactive");
     res.json(result);
   } catch (err) {
     console.error("[api/query/natural] error:", err);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { API_BASE_URL } from "../api/client.ts";
 
 interface NaturalQueryResult {
@@ -61,16 +61,6 @@ export function NaturalQuery({ initialQuery }: NaturalQueryProps = {}) {
     e.preventDefault();
     runQuery(question);
   }
-
-  // Auto-submits once on mount when the component is opened with a
-  // pre-filled question (e.g. "Ask about this title" from TitleDetail).
-  useEffect(() => {
-    if (initialQuery) {
-      setQuestion(initialQuery);
-      runQuery(initialQuery);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div className="mt-8">

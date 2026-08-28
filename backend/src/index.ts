@@ -20,7 +20,12 @@ import {
 dotenv.config();
 
 const app = express();
-app.use(cors({ origin: ["http://localhost:5173", "https://aurora-frontend-ten.vercel.app"] }));
+const allowedOrigins = [
+  /^http:\/\/localhost:\d+$/,
+  "https://aurora-frontend-ten.vercel.app",
+];
+
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.get("/health", (req, res) => {

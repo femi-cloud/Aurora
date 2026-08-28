@@ -104,21 +104,24 @@ interface TitleMeta {
   posterUrl: string | null;
 }
 
+const INITIAL_CAMERA_ANGLE = Math.PI / 6.5; // ~56°, gives the 3/4 "React logo" framing on landing
+const CAMERA_HEIGHT = 15; // raised from 9 to tilt the view down more and reveal ring overlap
+
 function AutoOrbitCamera({
   isPausedRef,
 }: {
   isPausedRef: React.RefObject<boolean>;
 }) {
-  const angleRef = useRef(0);
+  const angleRef = useRef(INITIAL_CAMERA_ANGLE);
 
     useFrame((state, delta) => {
     if (isPausedRef.current) return;
 
     angleRef.current += delta * 0.05; // slow, ~2 minutes per full revolution
-    const radius = 20; // widened to clear the outer ring (up to ~12.5 from center)
+    const radius = 30;
     state.camera.position.x = Math.cos(angleRef.current) * radius;
     state.camera.position.z = Math.sin(angleRef.current) * radius;
-    state.camera.position.y = 6;
+    state.camera.position.y = CAMERA_HEIGHT;
     state.camera.lookAt(0, 0, 0);
   });
 
@@ -403,7 +406,16 @@ export function Scene3D() {
         </div>
       )}
 
-      <Canvas camera={{ position: [0, 9, 19], fov: 50 }}>
+      <Canvas
+        camera={{
+          position: [
+            Math.cos(INITIAL_CAMERA_ANGLE) * 45,
+            CAMERA_HEIGHT,
+            Math.sin(INITIAL_CAMERA_ANGLE) * 45,
+          ],
+          fov: 50,
+        }}
+      >
         <color attach="background" args={["#05070f"]} />
         <fog attach="fog" args={["#0a0e1a", 12, 26]} />
         <Stars radius={80} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />

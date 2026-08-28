@@ -84,7 +84,7 @@ function App() {
         >
           <MarqueeLights count={16} size="sm" />
 
-          <div className="flex items-center justify-between my-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 my-3">
             <div className="flex items-baseline gap-3">
               <h1
                 className="text-3xl font-bold tracking-tight font-display flex text-marquee"
@@ -114,7 +114,7 @@ function App() {
               </span>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
               <span className="flex items-center gap-2 text-sm text-marquee">
                 <MarqueeLights count={3} size="sm" />
                 Live
@@ -131,7 +131,12 @@ function App() {
                         : "text-muted-foreground hover:text-marquee"
                     }`}
                   >
-                    {m === "2d" ? "Dashboard" : m === "3d" ? "Screening Room" : "History"}
+                    <span className="sm:hidden">
+                      {m === "2d" ? "2D" : m === "3d" ? "3D" : "Hist"}
+                    </span>
+                    <span className="hidden sm:inline">
+                      {m === "2d" ? "Dashboard" : m === "3d" ? "Screening Room" : "History"}
+                    </span>
                   </button>
                 ))}
               </div>

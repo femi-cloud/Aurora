@@ -30,7 +30,7 @@ const geminiModels = [
     .filter(Boolean),
 ];
 
-const groqModel = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+const groqModel = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
 
 const modelChain: ChainEntry[] = [
   ...geminiModels.map((model): ChainEntry => ({ provider: "gemini", model })),

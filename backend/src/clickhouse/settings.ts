@@ -17,7 +17,7 @@ export interface AgentSettings {
 // Used only if the table is empty (first run, before any settings were saved).
 // Mirrors the defaults currently hardcoded in orchestrator.ts / queries.ts.
 export const DEFAULT_SETTINGS: AgentSettings = {
-  anomalyScoreThreshold: 1.0,
+  anomalyScoreThreshold: 0.5,
   deviationThreshold: 0.25,
   baselineWindowMinutes: 30,
   recentWindowMinutes: 3,

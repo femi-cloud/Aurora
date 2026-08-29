@@ -34,6 +34,12 @@ export function RegionalBreakdown() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [titleSearch, setTitleSearch] = useState("");
+
+  const filteredTitles = titles.filter((t) =>
+    t.title_name.toLowerCase().includes(titleSearch.toLowerCase())
+  );
+
   useEffect(() => {
     if (!selectedTitle && titles.length > 0) setSelectedTitle(titles[0].title_id);
   }, [titles, selectedTitle]);
@@ -87,8 +93,22 @@ export function RegionalBreakdown() {
               {titles.find((t) => t.title_id === selectedTitle)?.title_name ?? selectedTitle}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
-            {titles.map((title) => (
+          <SelectContent
+            className="bg-surface border-border rounded-lg shadow-xl"
+            alignItemWithTrigger={false}
+            align="start"
+          >
+            <div className="px-1.5 py-1.5 sticky top-0 bg-surface z-10 border-b border-border mb-1">
+              <input
+                type="text"
+                value={titleSearch}
+                onChange={(e) => setTitleSearch(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="Search titles..."
+                className="w-full bg-void text-ink border border-border rounded-md px-2 py-1 font-mono text-xs focus:outline-none focus:border-marquee/50 transition-colors"
+              />
+            </div>
+            {filteredTitles.map((title) => (
               <SelectItem
                 key={title.title_id}
                 value={title.title_id}
@@ -97,6 +117,9 @@ export function RegionalBreakdown() {
                 {title.title_name}
               </SelectItem>
             ))}
+            {filteredTitles.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground font-mono">No titles match.</p>
+            )}
           </SelectContent>
         </Select>
       </div>

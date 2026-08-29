@@ -119,6 +119,12 @@ async function fetchTitleMetadata(): Promise<void> {
  * Writes title metadata (name + poster) to the dedicated aurora.titles
  * table, once at startup — this is what getTitleMetadata() reads from
  * now, instead of scanning the ever-growing audience_events table.
+ *
+ * Inserts the current TITLES first, then deletes any row whose title_id
+ * is no longer in TITLE_SEEDS — in that order, so the table is never
+ * briefly empty if the process is interrupted mid-sync (unlike a
+ * TRUNCATE-then-INSERT, which would leave every title nameless/posterless
+ * for a moment on every restart).
  */
 async function persistTitleMetadata(
   client: ReturnType<typeof createClient>
@@ -134,6 +140,12 @@ async function persistTitleMetadata(
       format: "JSONEachRow",
     });
     console.log("[simulator] title metadata persisted to aurora.titles");
+
+    const currentIds = TITLES.map((t) => `'${t.id}'`).join(", ");
+    await client.command({
+      query: `ALTER TABLE titles DELETE WHERE title_id NOT IN (${currentIds})`,
+    });
+    console.log("[simulator] stale title_ids (no longer in TITLE_SEEDS) purged from aurora.titles");
   } catch (err) {
     console.error("[simulator] failed to persist title metadata:", err);
   }

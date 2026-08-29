@@ -87,7 +87,8 @@ function App() {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 my-3">
             <div className="flex items-baseline gap-3">
               <h1
-                className="text-3xl font-bold tracking-tight font-display flex text-marquee"
+                onClick={() => { setMode("2d"); navigate("/"); }}
+                className="text-3xl font-bold tracking-tight font-display flex text-marquee cursor-pointer"
                 style={{ animation: "neon-flicker 5s ease-in-out infinite" }}
               >
                 {AURORA_LETTERS.map((l, i) => (

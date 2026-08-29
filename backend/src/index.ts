@@ -7,6 +7,7 @@ import { getAnomalyLog } from "./clickhouse/anomalyEvents.js";
 import { attachWebSocketServer } from "./ws/server.js";
 import { startOrchestrator, getDecisions, getSettings, updateSettings } from "./agent/orchestrator.js";
 import type { AgentSettings } from "./clickhouse/settings.js";
+import type { AgentDecision } from "../../packages/shared/src/types.js";
 import { getDecisionHistory } from "./clickhouse/decisions.js";
 import { runNaturalQuery } from "./agent/sqlAgent.js";
 import {
@@ -197,6 +198,7 @@ app.put("/api/settings", (req, res) => {
 });
 
 const VALID_STATUSES = new Set(["pending", "accepted", "rejected"]);
+const VALID_TYPES = new Set(["prioritize_dubbing", "recut_scene", "boost_market", "monitor"]);
 const MAX_HISTORY_LIMIT = 100;
 
 app.get("/api/decisions/history", async (req, res) => {
@@ -204,6 +206,11 @@ app.get("/api/decisions/history", async (req, res) => {
     const rawStatus = req.query.status as string | undefined;
     if (rawStatus && !VALID_STATUSES.has(rawStatus)) {
       return res.status(400).json({ error: `Invalid status: ${rawStatus}` });
+    }
+
+    const rawType = req.query.type as string | undefined;
+    if (rawType && !VALID_TYPES.has(rawType)) {
+      return res.status(400).json({ error: `Invalid type: ${rawType}` });
     }
 
     const rawLimit = Number(req.query.limit);
@@ -216,9 +223,12 @@ app.get("/api/decisions/history", async (req, res) => {
 
     const titleId = req.query.titleId as string | undefined;
 
+    const type = req.query.type as string | undefined;
+
     const result = await getDecisionHistory({
       status: rawStatus as "pending" | "accepted" | "rejected" | undefined,
       titleId,
+      type: rawType as AgentDecision["type"] | undefined,
       limit,
       offset,
     });

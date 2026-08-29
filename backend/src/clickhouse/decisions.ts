@@ -80,6 +80,7 @@ export async function loadLatestDecisions(): Promise<AgentDecision[]> {
 export interface DecisionHistoryFilters {
   status?: AgentDecision["status"];
   titleId?: string;
+  type?: AgentDecision["type"];
   limit: number;
   offset: number;
 }
@@ -97,7 +98,7 @@ export interface DecisionHistoryResult {
 export async function getDecisionHistory(
   filters: DecisionHistoryFilters
 ): Promise<DecisionHistoryResult> {
-  const { status, titleId, limit, offset } = filters;
+  const { status, titleId, type, limit, offset } = filters;
 
   const whereClauses: string[] = [];
   const queryParams: Record<string, unknown> = { limit, offset };
@@ -108,6 +109,10 @@ export async function getDecisionHistory(
   if (titleId) {
     whereClauses.push("title_id = {titleId:String}");
     queryParams.titleId = titleId;
+  }
+  if (type) {
+    whereClauses.push("type = {type:String}");
+    queryParams.type = type;
   }
   const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
 

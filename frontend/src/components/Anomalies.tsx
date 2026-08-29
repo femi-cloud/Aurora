@@ -48,12 +48,19 @@ export function Anomalies() {
   const [titleFilter, setTitleFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
 
+  const [titleSearch, setTitleSearch] = useState("");
+
   const filteredLog = log.filter(
     (a) =>
       (titleFilter === "all" || a.titleId === titleFilter) &&
       (regionFilter === "all" || a.region === regionFilter)
   );
-  const { titles, loading: titlesLoading } = useTitles();
+
+  const { titles } = useTitles();
+
+  const filteredTitleOptions = titles.filter((t) =>
+    t.title_name.toLowerCase().includes(titleSearch.toLowerCase())
+  );
 
   useEffect(() => {
     function loadAnomalies() {
@@ -113,17 +120,31 @@ export function Anomalies() {
 
         <Select value={titleFilter} onValueChange={(value) => value && setTitleFilter(value)}>
           <SelectTrigger className="w-45 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
-            <SelectValue placeholder={titlesLoading ? "Loading titles..." : undefined}>
+            <SelectValue>
               {titleFilter === "all"
                 ? "All titles"
                 : titles.find((t) => t.title_id === titleFilter)?.title_name ?? titleFilter}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
+          <SelectContent
+            className="bg-surface border-border rounded-lg shadow-xl"
+            alignItemWithTrigger={false}
+            align="start"
+          >
+            <div className="px-1.5 py-1.5 sticky top-0 bg-surface z-10 border-b border-border mb-1">
+              <input
+                type="text"
+                value={titleSearch}
+                onChange={(e) => setTitleSearch(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="Search titles..."
+                className="w-full bg-void text-ink border border-border rounded-md px-2 py-1 font-mono text-xs focus:outline-none focus:border-marquee/50 transition-colors"
+              />
+            </div>
             <SelectItem value="all" className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee">
               All titles
             </SelectItem>
-            {titles.map((t) => (
+            {filteredTitleOptions.map((t) => (
               <SelectItem
                 key={t.title_id}
                 value={t.title_id}
@@ -132,12 +153,15 @@ export function Anomalies() {
                 {t.title_name}
               </SelectItem>
             ))}
+            {filteredTitleOptions.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground font-mono">No titles match.</p>
+            )}
           </SelectContent>
         </Select>
 
         <Select value={regionFilter} onValueChange={(value) => value && setRegionFilter(value)}>
-          <SelectTrigger className="w-30 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
-            <SelectValue />
+          <SelectTrigger className="w-35 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
+            <SelectValue>{regionFilter === "all" ? "All regions" : regionFilter}</SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
             <SelectItem value="all" className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee">

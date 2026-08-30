@@ -110,6 +110,13 @@ export async function getAnomaliesRelative(
       FROM audience_stats_agg
       WHERE minute >= now() - INTERVAL ${recent} MINUTE
       GROUP BY title_id, title_name, region
+    ),
+    titles_dedup AS (
+      SELECT
+        title_id,
+        argMax(poster_url, updated_at) AS poster_url
+      FROM titles
+      GROUP BY title_id
     )
     SELECT
       r.title_id AS title_id,
@@ -122,7 +129,7 @@ export async function getAnomaliesRelative(
       t.poster_url AS poster_url
     FROM recent r
     INNER JOIN baseline b ON r.title_id = b.title_id AND r.region = b.region
-    LEFT JOIN titles t ON t.title_id = r.title_id
+    LEFT JOIN titles_dedup t ON t.title_id = r.title_id
     WHERE r.viewers >= ${minV}
       AND (r.current_rate - b.avg_drop_off_rate) > ${dev}
     ORDER BY deviation DESC

@@ -44,7 +44,7 @@ flowchart TD
     ORCH["Orchestrator<br/><small>builds signals, triggers Gemini every 45s</small>"]
     SQL["SQL agent<br/><small>natural language → SQL → ClickHouse</small>"]
     ML["ml-service<br/><small>FastAPI — IsolationForest + XGBoost</small>"]
-    GEMINI["Gemini<br/><small>+ Groq fallback</small>"]
+    GEMINI["Gemini"]
     WS["WebSocket<br/><small>pushes decisions live</small>"]
     FE["Frontend dashboard<br/><small>React + Vite — 2D control room + 3D Screening Room + title detail pages</small>"]
 
@@ -65,7 +65,7 @@ flowchart TD
 | Backend | Express, TypeScript (NodeNext), WebSocket (`ws`) |
 | Data store | **ClickHouse** (MergeTree + AggregatingMergeTree + materialized view) |
 | ML service | FastAPI (Python), IsolationForest, XGBoost |
-| Agent | Google Gemini (Gemini Enterprise), Groq (fallback) |
+| Agent | Google Gemini (Gemini Enterprise) |
 
 ## Features
 
@@ -108,7 +108,6 @@ flowchart TD
 - Python 3.x (for `ml-service`)
 - A running ClickHouse instance (local via Docker, or hosted — we use ClickHouse Cloud)
 - A Gemini API key (Google AI Studio or Vertex AI)
-- (Optional) a Groq API key, used as fallback
 - A TMDB API key, used to fetch real poster art and titles for the 20 pinned demo titles (optional — falls back to fictional titles/no posters if unset). Note: only the original 6 titles have a reliable XGBoost drop-off prediction so far — the model isn't retrained on the other 14 yet.
 
 ### Environment variables
@@ -125,7 +124,6 @@ ML_SERVICE_URL=http://localhost:8000
 ORCHESTRATOR_INTERVAL_MS=45000
 ANOMALY_SCORE_THRESHOLD=0.5
 GEMINI_API_KEY=
-GROQ_API_KEY=
 TMDB_API_KEY=
 ```
 
@@ -174,12 +172,12 @@ Aurora/
 │ │ ├── agent/
 │ │ │ ├── orchestrator.ts 45s cycle — builds signals, decides when to call Gemini, exposes getDecisions()
 │ │ │ ├── decisionEngine.ts generates AgentDecision objects with a 4-step reasoning trail
-│ │ │ ├── gemini.ts Gemini client (+ Groq fallback), per-model throttling
+│ │ │ ├── gemini.ts Gemini client , per-model throttling
 │ │ │ ├── sqlAgent.ts natural language → SQL → ClickHouse → plain-language answer
 │ │ │ └── simulator/
 │ │ │ └── eventGenerator.ts synthetic event simulator, TMDB-backed titles/posters, live insert into ClickHouse
 │ │ └── ws/server.ts WebSocket — broadcastDecision, onClientAction
-│ └── .env Gemini/Groq/TMDB keys, ClickHouse credentials
+│ └── .env Gemini/TMDB keys, ClickHouse credentials
 ├── ml-service/ FastAPI (Python), port 8000
 │ └── app/ anomaly.py (IsolationForest), dropoff_model.py (XGBoost), queries.py, clickhouse_client.py, config.py, main.py
 ├── frontend/ Vite + React, Tailwind v4 + shadcn/ui
@@ -226,5 +224,4 @@ MIT
 
 - [Google Gemini](https://ai.google.dev/) — decision-making agent
 - [ClickHouse](https://clickhouse.com/) — real-time event ingestion, aggregation, and decision persistence
-- [Groq](https://groq.com/) — fallback inference
 - [TMDB](https://www.themoviedb.org/) — real movie titles and poster art for the demo catalog

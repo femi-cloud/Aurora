@@ -1,5 +1,4 @@
 import { GoogleGenAI } from "@google/genai";
-import Groq from "groq-sdk";
 import "dotenv/config";
 
 const geminiApiKey = process.env.GEMINI_API_KEY;
@@ -8,7 +7,6 @@ if (!geminiApiKey) {
 }
 
 const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-const groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
 
 type Provider = "gemini" | "groq";
 type Priority = "interactive" | "background";
@@ -31,13 +29,11 @@ const geminiModels = [
     .filter(Boolean),
 ];
 
-const groqModel = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
 
 const modelChain: ChainEntry[] = [
-  ...geminiModels.map((model): ChainEntry => ({ provider: "gemini", model })),
-  // Only added to the chain if a key is configured — lets the app run
-  // Gemini-only if Groq isn't set up yet.
-  ...(groq ? [{ provider: "groq" as const, model: groqModel }] : []),
+  ...geminiModels.map((model): ChainEntry => ({ 
+    provider: "gemini",
+    model })),
 ];
 
 // Each model/provider pair is throttled independently — otherwise a
@@ -97,46 +93,22 @@ async function withFallback<T>(
  */
 export async function askGemini(prompt: string, priority: Priority = "background"): Promise<string> {
   return withFallback(async (entry) => {
-    if (entry.provider === "gemini") {
-      const response = await ai.models.generateContent({ model: entry.model, contents: prompt });
-      return response.text ?? "";
-    }
-    const completion = await groq!.chat.completions.create({
-      model: entry.model,
-      messages: [{ role: "user", content: prompt }],
-    });
-    return completion.choices[0]?.message?.content ?? "";
-  });
+    const response = await ai.models.generateContent({ model: entry.model, contents: prompt });
+    return response.text ?? "";
+  }, priority);
 }
-
 /**
  * Call the model with a forced JSON output matching a schema.
  * Used by decisionEngine.ts to get reliable AgentDecision objects.
  */
 export async function askGeminiJSON<T>(prompt: string, responseSchema: object, priority: Priority = "background"): Promise<T> {
   const text = await withFallback(async (entry) => {
-    if (entry.provider === "gemini") {
-      const response = await ai.models.generateContent({
-        model: entry.model,
-        contents: prompt,
-        config: { responseMimeType: "application/json", responseSchema },
-      });
-      return response.text ?? "{}";
-    }
-
-    // Groq's JSON mode (OpenAI-compatible) has no responseSchema param —
-    // it just needs response_format: json_object plus the word "json"
-    // somewhere in the prompt, and the schema described in plain text.
-    // NOTE: not yet tested end-to-end — verify this actually returns valid
-    // JSON before relying on it live, the exact wording requirement can be
-    // finicky on OpenAI-compatible APIs.
-    const groqPrompt = `${prompt}\n\nRespond ONLY with a JSON object matching this schema:\n${JSON.stringify(responseSchema)}`;
-    const completion = await groq!.chat.completions.create({
+    const response = await ai.models.generateContent({
       model: entry.model,
-      messages: [{ role: "user", content: groqPrompt }],
-      response_format: { type: "json_object" },
+      contents: prompt,
+      config: { responseMimeType: "application/json", responseSchema },
     });
-    return completion.choices[0]?.message?.content ?? "{}";
+    return response.text ?? "{}";
   }, priority);
 
   return JSON.parse(text) as T;

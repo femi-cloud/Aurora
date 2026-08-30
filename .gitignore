@@ -12,3 +12,5 @@ ml-service/venv/
 backend/.env
 frontend/.env
 __pycache__/
+
+mcp-clickhouse\.env

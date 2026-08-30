@@ -40,6 +40,7 @@ Beyond the 2D control room, Aurora also ships **The Screening Room** — an alte
 flowchart TD
     SIM["Event simulator<br/><small>synthetic viewing events, ~every 10s</small>"]
     CH[("ClickHouse<br/><small>raw events + live aggregation + decision history</small>")]
+    MCP["mcp-clickhouse<br/><small>official ClickHouse MCP server</small>"]
     API["REST API<br/><small>Express — polled every 5s</small>"]
     ORCH["Orchestrator<br/><small>builds signals, triggers Gemini every 45s</small>"]
     SQL["SQL agent<br/><small>natural language → SQL → ClickHouse</small>"]
@@ -50,6 +51,7 @@ flowchart TD
 
     SIM --> CH
     CH --> API --> FE
+    ORCH -->|"snapshot + anomalies"| MCP --> CH
     CH --> ORCH
     ORCH <--> ML
     ORCH --> GEMINI --> WS --> FE
@@ -64,6 +66,7 @@ flowchart TD
 | Frontend | React, Vite, TypeScript, Tailwind v4, shadcn/ui, Recharts, Three.js (react-three-fiber + drei), React Router |
 | Backend | Express, TypeScript (NodeNext), WebSocket (`ws`) |
 | Data store | **ClickHouse** (MergeTree + AggregatingMergeTree + materialized view) |
+| Data access (partial) | [ClickHouse MCP server](https://github.com/ClickHouse/mcp-clickhouse) — official `mcp-clickhouse`, HTTP/SSE transport |
 | ML service | FastAPI (Python), IsolationForest, XGBoost |
 | Agent | Google Gemini (Gemini Enterprise) |
 
@@ -109,6 +112,7 @@ flowchart TD
 - A running ClickHouse instance (local via Docker, or hosted — we use ClickHouse Cloud)
 - A Gemini API key (Google AI Studio or Vertex AI)
 - A TMDB API key, used to fetch real poster art and titles for the 20 pinned demo titles (optional — falls back to fictional titles/no posters if unset). Note: only the original 6 titles have a reliable XGBoost drop-off prediction so far — the model isn't retrained on the other 14 yet.
+- The official ClickHouse MCP server (`mcp-clickhouse`) running in HTTP/SSE mode, pointed at the same ClickHouse instance — see [ClickHouse/mcp-clickhouse](https://github.com/ClickHouse/mcp-clickhouse)
 
 ### Environment variables
 
@@ -125,6 +129,8 @@ ORCHESTRATOR_INTERVAL_MS=45000
 ANOMALY_SCORE_THRESHOLD=0.5
 GEMINI_API_KEY=
 TMDB_API_KEY=
+MCP_CLICKHOUSE_URL=http://localhost:8001/mcp
+MCP_CLICKHOUSE_AUTH_TOKEN=
 ```
 
 ### Database setup
@@ -140,6 +146,12 @@ clickhouse-client < infra/clickhouse/init/004_titles_metadata.sql
 ### Run it
 
 ```bash
+# 0. ClickHouse MCP server (required for getCurrentSnapshot/getAnomaliesRelative)
+cd mcp-clickhouse
+pip install mcp-clickhouse
+# loads CLICKHOUSE_HOST/PORT/USER/PASSWORD + CLICKHOUSE_MCP_* from .env
+mcp-clickhouse
+
 # 1. backend + event simulator (run together via concurrently)
 cd backend
 npm install
@@ -159,14 +171,15 @@ npm run dev
 `npm run dev` in `backend/` starts both the Express server and the synthetic event simulator (`src/simulator/eventGenerator.ts`) side by side — no separate step needed. Run `npm run simulate` on its own if you ever want the simulator without the server.
 
 ## Project structure
-
+```
 Aurora/
 ├── backend/ Express + TS (NodeNext)
 │ ├── src/
 │ │ ├── index.ts API routes (snapshot, timeline, regional, anomalies, titles, predict, query/natural, decisions, decisions/history)
 │ │ ├── clickhouse/
 │ │ │ ├── client.ts ClickHouse connection
-│ │ │ ├── queries.ts getCurrentSnapshot, getAudienceTimeline, getRegionalBreakdown, getAnomaliesRelative, getTitleMetadata
+│ │ │ ├── queries.ts getCurrentSnapshot, getAudienceTimeline, getRegionalBreakdown, getAnomaliesRelative, getTitleMetadata (snapshot/anomalies via MCP, rest direct)
+│ │ │ ├── mcpClient.ts MCP client — runSelectQuery() via the official ClickHouse MCP server
 │ │ │ ├── decisions.ts persistDecisionSnapshot, loadLatestDecisions, getDecisionHistory (agent_decisions table)
 │ │ │ └── run-migration.ts one-off script to run .sql files via the Node client
 │ │ ├── agent/
@@ -180,6 +193,8 @@ Aurora/
 │ └── .env Gemini/TMDB keys, ClickHouse credentials
 ├── ml-service/ FastAPI (Python), port 8000
 │ └── app/ anomaly.py (IsolationForest), dropoff_model.py (XGBoost), queries.py, clickhouse_client.py, config.py, main.py
+├── mcp-clickhouse/ Official ClickHouse MCP server (HTTP/SSE), separate process
+│ └── .env CLICKHOUSE_HOST/PORT/USER/PASSWORD + CLICKHOUSE_MCP_SERVER_TRANSPORT/BIND_HOST/BIND_PORT
 ├── frontend/ Vite + React, Tailwind v4 + shadcn/ui
 │ └── src/
 │ ├── App.tsx layout, header, 2D/3D/History mode toggle
@@ -210,6 +225,8 @@ Aurora/
 ├── docker-compose.yml
 ├── LICENSE
 └── README.md
+
+```
 
 
 ## Demo

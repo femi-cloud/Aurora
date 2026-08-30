@@ -2,7 +2,9 @@ import { getCurrentSnapshot, getAnomaliesRelative } from "../clickhouse/queries.
 import { generateDecision, type TitleSignal } from "./decisionEngine.js";
 import { broadcastDecision, onClientAction } from "../ws/server.js";
 import { persistDecisionSnapshot, loadLatestDecisions } from "../clickhouse/decisions.js";
+import { openAnomalyEvent, closeAnomalyEvent } from "../clickhouse/anomalyEvents.js";
 import type { AgentDecision } from "../../../packages/shared/src/types.js";
+import { loadSettings, persistSettings, type AgentSettings } from "../clickhouse/settings.js";
 
 // Within the 30-60s range — 45s default, adjustable without recompiling.
 const CYCLE_INTERVAL_MS = Number(process.env.ORCHESTRATOR_INTERVAL_MS ?? 45000);
@@ -11,9 +13,13 @@ const CYCLE_INTERVAL_MS = Number(process.env.ORCHESTRATOR_INTERVAL_MS ?? 45000);
 // uvicorn's default port, adjust if you run it on a different one.
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL ?? "http://localhost:8000";
 
-// Below this threshold, we don't bother Gemini: without a filter, every
-// title/region pair would produce a "monitor" every cycle.
-const ANOMALY_SCORE_THRESHOLD = Number(process.env.ANOMALY_SCORE_THRESHOLD ?? 1.0);
+let currentSettings: AgentSettings = {
+  anomalyScoreThreshold: 1.0,
+  deviationThreshold: 0.25,
+  baselineWindowMinutes: 30,
+  recentWindowMinutes: 3,
+  minViewers: 2,
+};
 
 interface MlAnomalyRow {
   minute: string;
@@ -78,7 +84,12 @@ async function fetchDropoffPrediction(
 async function buildSignals(): Promise<TitleSignal[]> {
   const [snapshot, relativeAnomalies, ifAnomalies] = await Promise.all([
     getCurrentSnapshot(10),
-    getAnomaliesRelative(),
+    getAnomaliesRelative(
+      currentSettings.deviationThreshold,
+      currentSettings.baselineWindowMinutes,
+      currentSettings.recentWindowMinutes,
+      currentSettings.minViewers
+    ),
     fetchMlAnomalies(),
   ]);
 
@@ -90,18 +101,17 @@ async function buildSignals(): Promise<TitleSignal[]> {
   const signals: TitleSignal[] = [];
 
   for (const row of snapshot as any[]) {
-    const { title_id, region, viewer_count, drop_off_count, avg_seconds_watched } = row;
-    if (!viewer_count) continue; // no views = nothing to evaluate
+    const { title_id, title_name, region, viewer_count, drop_off_count, avg_seconds_watched } = row;
+    if (!viewer_count) continue;
 
     const k = keyFor(title_id, region);
-    // Composite score: 0.5 per detector that flags this title/region pair.
-    // 1.0 if both agree, 0 if neither does.
     let anomalyScore = 0;
     if (relativeFlagged.has(k)) anomalyScore += 0.5;
     if (ifFlagged.has(k)) anomalyScore += 0.5;
 
     signals.push({
       titleId: title_id,
+      titleName: title_name,
       region,
       totalViews: viewer_count,
       avgSecondsWatched: avg_seconds_watched,
@@ -121,16 +131,17 @@ async function runCycle(): Promise<void> {
     console.error("[orchestrator] failed to build signals, skipping cycle:", err);
     return;
   }
-  const eligible = signals.filter((s) => (s.anomalyScore ?? 0) >= ANOMALY_SCORE_THRESHOLD);
-  console.log(`[orchestrator] cycle: ${signals.length} signals, ${eligible.length} above threshold ${ANOMALY_SCORE_THRESHOLD}`);
+  const eligible = signals.filter((s) => (s.anomalyScore ?? 0) >= currentSettings.anomalyScoreThreshold);
+  console.log(`[orchestrator] cycle: ${signals.length} signals, ${eligible.length} above threshold ${currentSettings.anomalyScoreThreshold}`);
 
   for (const signal of signals) {
     const k = keyFor(signal.titleId, signal.region);
     if (inFlight.has(k)) continue; // decision already in progress for this pair
 
-    if ((signal.anomalyScore ?? 0) < ANOMALY_SCORE_THRESHOLD) continue;
+    if ((signal.anomalyScore ?? 0) < currentSettings.anomalyScoreThreshold) continue;
 
     inFlight.add(k);
+    openAnomalyEvent(k, signal.titleId, signal.region); // fire-and-forget, non-blocking
     console.log(`[orchestrator] anomaly score ${signal.anomalyScore} for ${k} — generating decision...`);
     (async () => {
       try {
@@ -154,7 +165,10 @@ async function runCycle(): Promise<void> {
  * to the in-memory decision store. Call once from index.ts, after
  * attachWebSocketServer().
  */
-export function startOrchestrator(): void {
+export async function startOrchestrator(): Promise<void> {
+  currentSettings = await loadSettings();
+  console.log("[orchestrator] settings loaded:", currentSettings);
+
   onClientAction(({ decisionId, action }) => {
     const decision = decisions.get(decisionId);
     if (!decision) {
@@ -162,8 +176,16 @@ export function startOrchestrator(): void {
       return;
     }
     decision.status = action === "accept" ? "accepted" : "rejected";
+    decision.updatedAt = new Date().toISOString();
     broadcastDecision(decision); // rebroadcasts the new status to all clients
     persistDecisionSnapshot(decision); // fire-and-forget, non-blocking
+
+    if (decision.region) {
+      const k = keyFor(decision.titleId, decision.region);
+      closeAnomalyEvent(k, decision.titleId, decision.region, decision.id);
+    } else {
+      console.warn(`[orchestrator] decision ${decision.id} has no region (legacy record) — skipping anomaly_events closure`);
+    }
   });
 
   loadLatestDecisions().then((rows) => {
@@ -183,4 +205,22 @@ export function startOrchestrator(): void {
  */
 export function getDecisions(): AgentDecision[] {
   return Array.from(decisions.values()).reverse();
+}
+
+/**
+ * Returns the settings currently in effect (in-memory, authoritative
+ * for the running orchestrator).
+ */
+export function getSettings(): AgentSettings {
+  return currentSettings;
+}
+
+/**
+ * Updates the in-memory settings immediately (next cycle uses them) and
+ * persists the change to ClickHouse (fire-and-forget, non-blocking) so
+ * it survives a restart. Called from the Settings route handler.
+ */
+export function updateSettings(next: AgentSettings): void {
+  currentSettings = next;
+  persistSettings(next);
 }

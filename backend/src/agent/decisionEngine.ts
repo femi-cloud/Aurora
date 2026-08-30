@@ -10,6 +10,7 @@ import type { AgentDecision, DecisionStep } from "../../../packages/shared/src/t
  */
 export interface TitleSignal {
   titleId: string;
+  titleName: string;
   region: string;
   totalViews: number;
   avgSecondsWatched: number;
@@ -43,7 +44,7 @@ function buildPrompt(signal: TitleSignal, regionalContext: string): string {
   return `You are a streaming platform production/distribution analyst agent.
 Given the following audience signal for a title, decide on ONE action.
 
-Title ID: ${signal.titleId}
+Title: ${signal.titleName}
 Region: ${signal.region}
 Total views: ${signal.totalViews}
 Average seconds watched: ${signal.avgSecondsWatched}
@@ -74,10 +75,10 @@ export async function generateDecision(
   trail.push({
     id: randomUUID(),
     label: "Anomaly Detected",
-    detail: `Anomaly score ${signal.anomalyScore ?? 0} for ${signal.titleId} in ${signal.region} — ${signal.totalViews} views, ${(signal.dropOffRate * 100).toFixed(1)}% drop-off rate.`,
+    detail: `Anomaly score ${signal.anomalyScore ?? 0} for ${signal.titleName} in ${signal.region} — ${signal.totalViews} views, ${(signal.dropOffRate * 100).toFixed(1)}% drop-off rate.`,
   });
 
-  const contextQuestion = `How does ${signal.titleId}'s viewer count and drop-off rate in ${signal.region} over the last 60 minutes compare to its average over the last 24 hours, and to other regions for the same title?`;
+  const contextQuestion = `How does "${signal.titleName}"'s viewer count and drop-off rate in ${signal.region} over the last 60 minutes compare to its average over the last 24 hours, and to other regions for the same title?`;
   let regionalContext = "Regional context unavailable.";
   try {
     const context = await runNaturalQuery(contextQuestion);
@@ -115,10 +116,13 @@ export async function generateDecision(
     detail: output.reasoning,
   });
 
+  const createdAt = new Date().toISOString();
   return {
     id: randomUUID(),
-    createdAt: new Date().toISOString(),
+    createdAt,
+    updatedAt: createdAt, // freshly created, not yet updated
     titleId: signal.titleId,
+    region: signal.region,
     type: output.type,
     summary: output.summary,
     reasoning: output.reasoning,

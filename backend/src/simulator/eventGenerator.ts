@@ -21,13 +21,13 @@ const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 // Pinned fictional title_id -> real TMDB movie, kept stable so the
 // ml-service one-hot encoding never breaks. baseline stays the
 // simulator's own tuning knob, unrelated to the real movie.
-const TITLE_SEEDS = [
+const TITLE_SEEDS: { id: string; tmdbId: number; baseline: number; fallbackName: string; mediaType?: "movie" | "tv" }[] = [
   { id: "aurora-01", tmdbId: 27205, baseline: 0.85, fallbackName: "Nightfall Protocol" },
   { id: "aurora-02", tmdbId: 496243, baseline: 0.7, fallbackName: "The Last Reel" },
   { id: "aurora-03", tmdbId: 129, baseline: 0.6, fallbackName: "Glass Horizon" },
   { id: "aurora-04", tmdbId: 76341, baseline: 0.75, fallbackName: "Static Bloom" },
   { id: "aurora-05", tmdbId: 419430, baseline: 0.5, fallbackName: "Echo Chamber" },
-  { id: "aurora-06", tmdbId: 313369, baseline: 0.65, fallbackName: "Paper Moons" },
+  { id: "aurora-06", tmdbId: 7225, baseline: 0.65, fallbackName: "Merlin", mediaType: "tv" },
   { id: "aurora-07", tmdbId: 157336, baseline: 0.8, fallbackName: "Wormhole Season" },
   { id: "aurora-08", tmdbId: 603, baseline: 0.9, fallbackName: "Red Pill Blue Pill" },
   { id: "aurora-09", tmdbId: 680, baseline: 0.72, fallbackName: "Nonlinear Diner" },
@@ -82,18 +82,20 @@ async function fetchTitleMetadata(): Promise<void> {
     return;
   }
 
-  const results = await Promise.all(
+    const results = await Promise.all(
     TITLE_SEEDS.map(async (seed) => {
       try {
+        const endpoint = seed.mediaType === "tv" ? "tv" : "movie";
         const res = await fetch(
-          `https://api.themoviedb.org/3/movie/${seed.tmdbId}?api_key=${TMDB_API_KEY}`
+          `https://api.themoviedb.org/3/${endpoint}/${seed.tmdbId}?api_key=${TMDB_API_KEY}`
         );
         if (!res.ok) throw new Error(`TMDB responded ${res.status}`);
-        const data = (await res.json()) as { title: string; poster_path: string | null };
+        // Movie responses use "title", TV responses use "name" — same poster_path shape either way.
+        const data = (await res.json()) as { title?: string; name?: string; poster_path: string | null };
 
         return {
           id: seed.id,
-          name: data.title,
+          name: data.title ?? data.name ?? seed.fallbackName,
           baseline: seed.baseline,
           posterUrl: data.poster_path ? `${TMDB_IMAGE_BASE}${data.poster_path}` : null,
         };
@@ -117,6 +119,12 @@ async function fetchTitleMetadata(): Promise<void> {
  * Writes title metadata (name + poster) to the dedicated aurora.titles
  * table, once at startup — this is what getTitleMetadata() reads from
  * now, instead of scanning the ever-growing audience_events table.
+ *
+ * Inserts the current TITLES first, then deletes any row whose title_id
+ * is no longer in TITLE_SEEDS — in that order, so the table is never
+ * briefly empty if the process is interrupted mid-sync (unlike a
+ * TRUNCATE-then-INSERT, which would leave every title nameless/posterless
+ * for a moment on every restart).
  */
 async function persistTitleMetadata(
   client: ReturnType<typeof createClient>
@@ -132,6 +140,12 @@ async function persistTitleMetadata(
       format: "JSONEachRow",
     });
     console.log("[simulator] title metadata persisted to aurora.titles");
+
+    const currentIds = TITLES.map((t) => `'${t.id}'`).join(", ");
+    await client.command({
+      query: `ALTER TABLE titles DELETE WHERE title_id NOT IN (${currentIds})`,
+    });
+    console.log("[simulator] stale title_ids (no longer in TITLE_SEEDS) purged from aurora.titles");
   } catch (err) {
     console.error("[simulator] failed to persist title metadata:", err);
   }

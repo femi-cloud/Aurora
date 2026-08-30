@@ -3,8 +3,12 @@ import dotenv from "dotenv";
 import cors from "cors";
 import { createServer } from "node:http";
 import { testClickhouseConnection } from "./clickhouse/client";
+import { getAnomalyLog } from "./clickhouse/anomalyEvents.js";
 import { attachWebSocketServer } from "./ws/server.js";
-import { startOrchestrator, getDecisions } from "./agent/orchestrator.js";
+import { startOrchestrator, getDecisions, getSettings, updateSettings } from "./agent/orchestrator.js";
+import type { AgentSettings } from "./clickhouse/settings.js";
+import type { AgentDecision } from "../../packages/shared/src/types.js";
+import { getDecisionHistory } from "./clickhouse/decisions.js";
 import { runNaturalQuery } from "./agent/sqlAgent.js";
 import {
   getCurrentSnapshot,
@@ -17,7 +21,12 @@ import {
 dotenv.config();
 
 const app = express();
-app.use(cors());
+const allowedOrigins = [
+  /^http:\/\/localhost:\d+$/,
+  "https://aurora-frontend-ten.vercel.app",
+];
+
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.get("/health", (req, res) => {
@@ -80,6 +89,16 @@ app.get("/api/anomalies", async (req, res) => {
   }
 });
 
+app.get("/api/anomalies/log", async (req, res) => {
+  try {
+    const data = await getAnomalyLog();
+    res.json(data);
+  } catch (err) {
+    console.error("[api/anomalies/log] error:", err);
+    res.status(500).json({ error: "Unable to fetch anomaly log" });
+  }
+});
+
 app.get("/api/titles", async (req, res) => {
   try {
     const data = await getTitleMetadata();
@@ -113,7 +132,7 @@ app.post("/api/query/natural", async (req, res) => {
     if (!question || typeof question !== "string") {
       return res.status(400).json({ error: "The 'question' field is required" });
     }
-    const result = await runNaturalQuery(question);
+    const result = await runNaturalQuery(question, "interactive");
     res.json(result);
   } catch (err) {
     console.error("[api/query/natural] error:", err);
@@ -127,6 +146,96 @@ app.get("/api/decisions", (req, res) => {
   } catch (err) {
     console.error("[api/decisions] error:", err);
     res.status(500).json({ error: "Unable to fetch decisions" });
+  }
+});
+
+const SETTINGS_FIELDS = [
+  "anomalyScoreThreshold",
+  "deviationThreshold",
+  "baselineWindowMinutes",
+  "recentWindowMinutes",
+  "minViewers",
+] as const;
+
+app.get("/api/settings", (req, res) => {
+  try {
+    res.json(getSettings());
+  } catch (err) {
+    console.error("[api/settings] error:", err);
+    res.status(500).json({ error: "Unable to fetch settings" });
+  }
+});
+
+app.put("/api/settings", (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const errors: string[] = [];
+
+    for (const field of SETTINGS_FIELDS) {
+      const value = body[field];
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+        errors.push(`${field} must be a non-negative number`);
+      }
+    }
+    if (errors.length > 0) {
+      return res.status(400).json({ error: "Invalid settings", details: errors });
+    }
+
+    const next: AgentSettings = {
+      anomalyScoreThreshold: body.anomalyScoreThreshold,
+      deviationThreshold: body.deviationThreshold,
+      baselineWindowMinutes: body.baselineWindowMinutes,
+      recentWindowMinutes: body.recentWindowMinutes,
+      minViewers: body.minViewers,
+    };
+
+    updateSettings(next);
+    res.json(next);
+  } catch (err) {
+    console.error("[api/settings PUT] error:", err);
+    res.status(500).json({ error: "Unable to update settings" });
+  }
+});
+
+const VALID_STATUSES = new Set(["pending", "accepted", "rejected"]);
+const VALID_TYPES = new Set(["prioritize_dubbing", "recut_scene", "boost_market", "monitor"]);
+const MAX_HISTORY_LIMIT = 100;
+
+app.get("/api/decisions/history", async (req, res) => {
+  try {
+    const rawStatus = req.query.status as string | undefined;
+    if (rawStatus && !VALID_STATUSES.has(rawStatus)) {
+      return res.status(400).json({ error: `Invalid status: ${rawStatus}` });
+    }
+
+    const rawType = req.query.type as string | undefined;
+    if (rawType && !VALID_TYPES.has(rawType)) {
+      return res.status(400).json({ error: `Invalid type: ${rawType}` });
+    }
+
+    const rawLimit = Number(req.query.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0
+      ? Math.min(rawLimit, MAX_HISTORY_LIMIT)
+      : 20;
+
+    const rawOffset = Number(req.query.offset);
+    const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+
+    const titleId = req.query.titleId as string | undefined;
+
+    const type = req.query.type as string | undefined;
+
+    const result = await getDecisionHistory({
+      status: rawStatus as "pending" | "accepted" | "rejected" | undefined,
+      titleId,
+      type: rawType as AgentDecision["type"] | undefined,
+      limit,
+      offset,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error("[api/decisions/history] error:", err);
+    res.status(500).json({ error: "Unable to fetch decision history" });
   }
 });
 

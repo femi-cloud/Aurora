@@ -17,11 +17,11 @@
   "dependencies": {
     "@clickhouse/client": "^1.23.1",
     "@google/genai": "^2.16.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "concurrently": "^9.1.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "groq-sdk": "^1.5.0",
     "ws": "^8.21.3"
   },
   "devDependencies": {

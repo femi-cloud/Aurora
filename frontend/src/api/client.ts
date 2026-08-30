@@ -1,4 +1,4 @@
-import type { SnapshotRow, TimelineRow, RegionalRow, AnomalyRow, TitleMetadataRow } from "../types/audience";
+import type { SnapshotRow, TimelineRow, RegionalRow, AnomalyRow, AnomalyLogRow, TitleMetadataRow } from "../types/audience";
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -34,6 +34,35 @@ export function getAnomalies(deviationThreshold?: number) {
   return fetchJson<AnomalyRow[]>(`/api/anomalies${query}`);
 }
 
+export function getAnomalyLog() {
+  return fetchJson<AnomalyLogRow[]>(`/api/anomalies/log`);
+}
+
 export function getTitles() {
   return fetchJson<TitleMetadataRow[]>("/api/titles");
+}
+
+export interface AgentSettings {
+  anomalyScoreThreshold: number;
+  deviationThreshold: number;
+  baselineWindowMinutes: number;
+  recentWindowMinutes: number;
+  minViewers: number;
+}
+
+export function getSettings() {
+  return fetchJson<AgentSettings>("/api/settings");
+}
+
+export async function updateSettings(settings: AgentSettings): Promise<AgentSettings> {
+  const response = await fetch(`${API_BASE_URL}/api/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error ?? `API Error on /api/settings: ${response.status}`);
+  }
+  return response.json();
 }

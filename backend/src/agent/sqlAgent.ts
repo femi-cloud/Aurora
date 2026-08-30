@@ -62,7 +62,7 @@ function validateReadOnlySql(sql: string): void {
   }
 }
 
-async function generateSql(question: string): Promise<SqlGenerationResult> {
+async function generateSql(question: string, priority: "interactive" | "background"): Promise<SqlGenerationResult> {
   const prompt = `
 You are a read-only ClickHouse query generator for a streaming audience dashboard.
 
@@ -82,10 +82,10 @@ Generate ONE single valid ClickHouse SQL query that answers this question, stric
     required: ["sql", "explanation"],
   };
 
-  return askGeminiJSON<SqlGenerationResult>(prompt, schema);
+  return askGeminiJSON<SqlGenerationResult>(prompt, schema, priority);
 }
 
-async function interpretResults(question: string, rows: unknown[]): Promise<string> {
+async function interpretResults(question: string, rows: unknown[], priority: "interactive" | "background"): Promise<string> {
   const prompt = `
 The user asked: "${question}"
 
@@ -96,7 +96,7 @@ Answer in English, in one or two clear sentences, directly addressing the questi
 If the result is empty, say so simply (no data available for this period/filter).
 `;
 
-  return askGemini(prompt);
+    return askGemini(prompt, priority);
 }
 
 export interface NaturalQueryResult {
@@ -111,8 +111,11 @@ export interface NaturalQueryResult {
  * Main entry point: natural language question -> SQL generated,
  * validated, executed, result interpreted.
  */
-export async function runNaturalQuery(question: string): Promise<NaturalQueryResult> {
-  const { sql, explanation } = await generateSql(question);
+export async function runNaturalQuery(
+  question: string,
+  priority: "interactive" | "background" = "background"
+): Promise<NaturalQueryResult> {
+  const { sql, explanation } = await generateSql(question, priority);
 
   validateReadOnlySql(sql);
 
@@ -122,7 +125,7 @@ export async function runNaturalQuery(question: string): Promise<NaturalQueryRes
   });
   const rows = (await resultSet.json()) as unknown[];
 
-  const answer = await interpretResults(question, rows);
+  const answer = await interpretResults(question, rows, priority);
 
   return { question, sql, explanation, rows, answer };
 }

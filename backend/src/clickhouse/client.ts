@@ -8,6 +8,10 @@ export const clickhouse = createClient({
   username: process.env.CLICKHOUSE_USER || "default",
   password: process.env.CLICKHOUSE_PASSWORD || "",
   database: process.env.CLICKHOUSE_DB || "default",
+  keep_alive: {
+    enabled: true,
+    idle_socket_ttl: 2500,
+  },
 });
 
 export async function testClickhouseConnection(): Promise<boolean> {

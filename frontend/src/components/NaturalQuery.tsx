@@ -9,6 +9,10 @@ interface NaturalQueryResult {
   answer: string;
 }
 
+interface NaturalQueryProps {
+  initialQuery?: string;
+}
+
 function renderInline(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((part, i) =>
@@ -20,16 +24,15 @@ function renderInline(text: string) {
   );
 }
 
-export function NaturalQuery() {
-  const [question, setQuestion] = useState("");
+export function NaturalQuery({ initialQuery }: NaturalQueryProps = {}) {
+  const [question, setQuestion] = useState(initialQuery ?? "");
   const [result, setResult] = useState<NaturalQueryResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSql, setShowSql] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!question.trim()) return;
+  async function runQuery(q: string) {
+    if (!q.trim()) return;
 
     setLoading(true);
     setError(null);
@@ -39,7 +42,7 @@ export function NaturalQuery() {
       const res = await fetch(`${API_BASE_URL}/api/query/natural`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question: q }),
       });
       if (!res.ok) {
         const errData = await res.json();
@@ -52,6 +55,11 @@ export function NaturalQuery() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    runQuery(question);
   }
 
   return (

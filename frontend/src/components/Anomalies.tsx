@@ -1,45 +1,44 @@
 import { useEffect, useState } from "react";
-import { getAnomalies } from "../api/client";
-import {
+import { getAnomalies, getAnomalyLog, getTitles } from "../api/client";import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { AnomalyRow } from "../types/audience";
+import { useTitles } from "../hooks/useTitles";
+import type { AnomalyRow, AnomalyLogRow, TitleMetadataRow } from "../types/audience";
 
-interface AnomalyLogEntry extends AnomalyRow {
+interface AnomalyLogEntry {
   key: string;
+  titleId: string;
+  region: string;
+  titleName: string | null;
+  stillActive: boolean;
   detectedAt: string;
   resolvedAt: string | null;
-  stillActive: boolean;
+  // Metrics only come from /api/anomalies (the live snapshot), so they're
+  // only guaranteed while the anomaly is active. Once closed, we keep the
+  // last known values from the previous render rather than blanking them.
+  deviation: number | null;
+  currentRate: number | null;
+  baselineRate: number | null;
 }
 
-const TITLES = [
-  { id: "aurora-01", name: "Nightfall Protocol" },
-  { id: "aurora-02", name: "The Last Reel" },
-  { id: "aurora-03", name: "Glass Horizon" },
-  { id: "aurora-04", name: "Static Bloom" },
-  { id: "aurora-05", name: "Echo Chamber" },
-  { id: "aurora-06", name: "Paper Moons" },
-  { id: "aurora-07", name: "Interstellar" },
-  { id: "aurora-08", name: "The Matrix" },
-  { id: "aurora-09", name: "Pulp Fiction" },
-  { id: "aurora-10", name: "The Dark Knight" },
-  { id: "aurora-11", name: "Everything Everywhere All at Once" },
-  { id: "aurora-12", name: "Whiplash" },
-  { id: "aurora-13", name: "Spider-Man: Into the Spider-Verse" },
-  { id: "aurora-14", name: "The Grand Budapest Hotel" },
-  { id: "aurora-15", name: "Dune" },
-  { id: "aurora-16", name: "The Social Network" },
-  { id: "aurora-17", name: "Knives Out" },
-  { id: "aurora-18", name: "Coco" },
-  { id: "aurora-19", name: "Oppenheimer" },
-  { id: "aurora-20", name: "Barbie" },
-];
-
 const REGIONS = ["NA", "EU", "WA", "SA", "APAC"];
+
+function formatTime(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function formatPct(value: number | null): string {
+  return value === null ? "—" : `${Math.round(value * 100)}%`;
+}
 
 export function Anomalies() {
   const [log, setLog] = useState<AnomalyLogEntry[]>([]);
@@ -49,48 +48,57 @@ export function Anomalies() {
   const [titleFilter, setTitleFilter] = useState("all");
   const [regionFilter, setRegionFilter] = useState("all");
 
+  const [titleSearch, setTitleSearch] = useState("");
+
   const filteredLog = log.filter(
     (a) =>
-      (titleFilter === "all" || a.title_id === titleFilter) &&
+      (titleFilter === "all" || a.titleId === titleFilter) &&
       (regionFilter === "all" || a.region === regionFilter)
+  );
+
+  const { titles } = useTitles();
+
+  const filteredTitleOptions = titles.filter((t) =>
+    t.title_name.toLowerCase().includes(titleSearch.toLowerCase())
   );
 
   useEffect(() => {
     function loadAnomalies() {
-      getAnomalies()
-        .then((rows: AnomalyRow[]) => {
-          const safeRows = rows ?? [];
-          const now = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-          const activeKeys = new Set(safeRows.map((r) => `${r.title_id}-${r.region}`));
+      Promise.all([getAnomalyLog(), getAnomalies(), getTitles()])
+        .then(([logRows, metricRows, titleRows]: [AnomalyLogRow[], AnomalyRow[], TitleMetadataRow[]]) => {
+          const safeLogRows = logRows ?? [];
+          const metricsByKey = new Map(
+            (metricRows ?? []).map((r) => [`${r.title_id}-${r.region}`, r])
+          );
+          const namesByTitleId = new Map(
+            (titleRows ?? []).map((t) => [t.title_id, t.title_name])
+          );
 
           setLog((prev) => {
-            const updated = new Map(prev.map((e) => [e.key, e]));
+            const prevByKey = new Map(prev.map((e) => [e.key, e]));
 
-            for (const row of safeRows) {
-              const key = `${row.title_id}-${row.region}`;
-              const existing = updated.get(key);
-              updated.set(key, {
-                ...row,
+            const merged = safeLogRows.map((row): AnomalyLogEntry => {
+              const key = `${row.titleId}-${row.region}`;
+              const metrics = metricsByKey.get(key);
+              const previous = prevByKey.get(key);
+
+              return {
                 key,
-                detectedAt: existing?.detectedAt ?? now, 
-                resolvedAt: null, 
-                stillActive: true,
-              });
-            }
+                titleId: row.titleId,
+                region: row.region,
+                titleName: namesByTitleId.get(row.titleId) ?? metrics?.title_name ?? previous?.titleName ?? null,
+                stillActive: row.status === "opened",
+                detectedAt: row.openedAt,
+                resolvedAt: row.closedAt,
+                deviation: metrics?.deviation ?? previous?.deviation ?? null,
+                currentRate: metrics?.current_rate ?? previous?.currentRate ?? null,
+                baselineRate: metrics?.baseline_rate ?? previous?.baselineRate ?? null,
+              };
+            });
 
-            for (const [key, entry] of updated) {
-              if (!activeKeys.has(key)) {
-                updated.set(key, {
-                  ...entry,
-                  resolvedAt: entry.resolvedAt ?? now, 
-                  stillActive: false,
-                });
-              }
-            }
-
-            return Array.from(updated.values())
+            return merged
               .sort((a, b) => b.detectedAt.localeCompare(a.detectedAt))
-              .slice(0, 15); 
+              .slice(0, 15);
           });
 
           setError(null);
@@ -112,27 +120,48 @@ export function Anomalies() {
 
         <Select value={titleFilter} onValueChange={(value) => value && setTitleFilter(value)}>
           <SelectTrigger className="w-45 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
-            <SelectValue />
+            <SelectValue>
+              {titleFilter === "all"
+                ? "All titles"
+                : titles.find((t) => t.title_id === titleFilter)?.title_name ?? titleFilter}
+            </SelectValue>
           </SelectTrigger>
-          <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
+          <SelectContent
+            className="bg-surface border-border rounded-lg shadow-xl"
+            alignItemWithTrigger={false}
+            align="start"
+          >
+            <div className="px-1.5 py-1.5 sticky top-0 bg-surface z-10 border-b border-border mb-1">
+              <input
+                type="text"
+                value={titleSearch}
+                onChange={(e) => setTitleSearch(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="Search titles..."
+                className="w-full bg-void text-ink border border-border rounded-md px-2 py-1 font-mono text-xs focus:outline-none focus:border-marquee/50 transition-colors"
+              />
+            </div>
             <SelectItem value="all" className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee">
               All titles
             </SelectItem>
-            {TITLES.map((t) => (
+            {filteredTitleOptions.map((t) => (
               <SelectItem
-                key={t.id}
-                value={t.id}
+                key={t.title_id}
+                value={t.title_id}
                 className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee data-[state=checked]:text-marquee data-[state=checked]:font-semibold"
               >
-                {t.name}
+                {t.title_name}
               </SelectItem>
             ))}
+            {filteredTitleOptions.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground font-mono">No titles match.</p>
+            )}
           </SelectContent>
         </Select>
 
         <Select value={regionFilter} onValueChange={(value) => value && setRegionFilter(value)}>
-          <SelectTrigger className="w-30 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
-            <SelectValue />
+          <SelectTrigger className="w-35 bg-surface border-border font-mono text-sm rounded-lg hover:border-marquee/50 transition-colors">
+            <SelectValue>{regionFilter === "all" ? "All regions" : regionFilter}</SelectValue>
           </SelectTrigger>
           <SelectContent className="bg-surface border-border rounded-lg shadow-xl">
             <SelectItem value="all" className="font-mono text-sm rounded-md focus:bg-marquee/10 focus:text-marquee">
@@ -160,7 +189,7 @@ export function Anomalies() {
 
       {!loading && !error && filteredLog.length > 0 && (
         <div className="flex flex-col gap-2 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-            {filteredLog.map((anomaly) => (
+          {filteredLog.map((anomaly) => (
             <div
               key={anomaly.key}
               className={`rounded-lg p-4 flex items-center justify-between border transition-opacity ${
@@ -171,7 +200,7 @@ export function Anomalies() {
             >
               <div>
                 <p className="font-bold flex items-center gap-2 font-mono">
-                  {anomaly.title_name}
+                  {anomaly.titleName ?? anomaly.titleId}
                   {anomaly.stillActive ? (
                     <span className="text-xs bg-tally text-void px-2 py-0.5 rounded font-semibold">ACTIVE</span>
                   ) : (
@@ -179,17 +208,16 @@ export function Anomalies() {
                   )}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Region: {anomaly.region} · detected at {anomaly.detectedAt}
-                  {anomaly.resolvedAt && ` · resolved at ${anomaly.resolvedAt}`}
+                  Region: {anomaly.region} · detected at {formatTime(anomaly.detectedAt) ?? "—"}
+                  {anomaly.resolvedAt && ` · resolved at ${formatTime(anomaly.resolvedAt)}`}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-tally font-bold font-mono">
-                  +{Math.round(anomaly.deviation * 100)} pts
+                  {anomaly.deviation === null ? "—" : `+${Math.round(anomaly.deviation * 100)} pts`}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {Math.round(anomaly.current_rate * 100)}% vs{" "}
-                  {Math.round(anomaly.baseline_rate * 100)}% baseline
+                  {formatPct(anomaly.currentRate)} vs {formatPct(anomaly.baselineRate)} baseline
                 </p>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { clickhouse } from "./client.js";
+import { runSelectQuery, toSafeInt, toSafeString } from "./mcpClient.js";
 import type { AgentDecision } from "../../../packages/shared/src/types.js";
 
 function toClickHouseDateTime(iso: string): string {
@@ -13,6 +14,7 @@ function toClickHouseDateTime(iso: string): string {
  */
 export async function persistDecisionSnapshot(decision: AgentDecision): Promise<void> {
   try {
+    console.log("[decisions] persisting:", JSON.stringify({ id: decision.id, region: decision.region }));
     await clickhouse.insert({
       table: "agent_decisions",
       values: [
@@ -32,8 +34,6 @@ export async function persistDecisionSnapshot(decision: AgentDecision): Promise<
       format: "JSONEachRow",
     });
   } catch (err) {
-    // Non-fatal: persistence is a safety net, not the runtime source of
-    // truth (the orchestrator's in-memory Map still is).
     console.error(`[decisions] failed to persist snapshot for ${decision.id}:`, err);
   }
 }
@@ -42,7 +42,6 @@ export async function persistDecisionSnapshot(decision: AgentDecision): Promise<
  * Loads the latest snapshot per decision id — used once at backend
  * startup to reseed the in-memory Map after a restart.
  */
-// APRÈS
 function mapRow(row: any): AgentDecision {
   return {
     id: row.id,
@@ -60,16 +59,13 @@ function mapRow(row: any): AgentDecision {
 
 export async function loadLatestDecisions(): Promise<AgentDecision[]> {
   try {
-    const resultSet = await clickhouse.query({
-      query: `
-        SELECT id, created_at, title_id, region, type, summary, reasoning, reasoning_trail, status
-        FROM aurora.agent_decisions
-        ORDER BY updated_at DESC
-        LIMIT 1 BY id
-      `,
-      format: "JSONEachRow",
-    });
-    const rows = (await resultSet.json()) as any[];
+    const query = `
+      SELECT id, created_at, title_id, region, type, summary, reasoning, reasoning_trail, status
+      FROM aurora.agent_decisions
+      ORDER BY updated_at DESC
+      LIMIT 1 BY id
+    `;
+    const rows = await runSelectQuery(query);
     return rows.map(mapRow);
   } catch (err) {
     console.error("[decisions] failed to load decisions from ClickHouse:", err);
@@ -101,20 +97,13 @@ export async function getDecisionHistory(
   const { status, titleId, type, limit, offset } = filters;
 
   const whereClauses: string[] = [];
-  const queryParams: Record<string, unknown> = { limit, offset };
-  if (status) {
-    whereClauses.push("status = {status:String}");
-    queryParams.status = status;
-  }
-  if (titleId) {
-    whereClauses.push("title_id = {titleId:String}");
-    queryParams.titleId = titleId;
-  }
-  if (type) {
-    whereClauses.push("type = {type:String}");
-    queryParams.type = type;
-  }
+  if (status) whereClauses.push(`status = '${toSafeString(status)}'`);
+  if (titleId) whereClauses.push(`title_id = '${toSafeString(titleId)}'`);
+  if (type) whereClauses.push(`type = '${toSafeString(type)}'`);
   const whereSql = whereClauses.length ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+  const lim = toSafeInt(limit);
+  const off = toSafeInt(offset);
 
   const latestPerId = `
     SELECT id, created_at, updated_at, title_id, region, type, summary, reasoning, reasoning_trail, status
@@ -124,26 +113,15 @@ export async function getDecisionHistory(
   `;
 
   try {
-    const [rowsResult, countResult] = await Promise.all([
-      clickhouse.query({
-        query: `
-          SELECT * FROM (${latestPerId})
-          ${whereSql}
-          ORDER BY updated_at DESC
-          LIMIT {limit:UInt32} OFFSET {offset:UInt32}
-        `,
-        query_params: queryParams,
-        format: "JSONEachRow",
-      }),
-      clickhouse.query({
-        query: `SELECT count() AS total FROM (${latestPerId}) ${whereSql}`,
-        query_params: queryParams,
-        format: "JSONEachRow",
-      }),
+    const [rows, countRows] = await Promise.all([
+      runSelectQuery(`
+        SELECT * FROM (${latestPerId})
+        ${whereSql}
+        ORDER BY updated_at DESC
+        LIMIT ${lim} OFFSET ${off}
+      `),
+      runSelectQuery(`SELECT count() AS total FROM (${latestPerId}) ${whereSql}`),
     ]);
-
-    const rows = (await rowsResult.json()) as any[];
-    const countRows = (await countResult.json()) as any[];
 
     return {
       decisions: rows.map(mapRow),

@@ -1,4 +1,5 @@
 import { clickhouse } from "./client.js";
+import { runSelectQuery, toSafeString } from "./mcpClient.js";
 
 const SETTINGS_ID = "default";
 
@@ -70,25 +71,19 @@ export async function persistSettings(settings: AgentSettings): Promise<void> {
  */
 export async function loadSettings(): Promise<AgentSettings> {
   try {
-    const resultSet = await clickhouse.query({
-      query: `
-        SELECT id, anomaly_score_threshold, deviation_threshold,
-               baseline_window_minutes, recent_window_minutes, min_viewers
-        FROM aurora.agent_settings
-        WHERE id = {id:String}
-        ORDER BY updated_at DESC
-        LIMIT 1
-      `,
-      query_params: { id: SETTINGS_ID },
-      format: "JSONEachRow",
-    });
-
-    const rows = (await resultSet.json()) as any[];
+    const query = `
+      SELECT id, anomaly_score_threshold, deviation_threshold,
+             baseline_window_minutes, recent_window_minutes, min_viewers
+      FROM aurora.agent_settings
+      WHERE id = '${toSafeString(SETTINGS_ID)}'
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `;
+    const rows = await runSelectQuery(query);
     if (rows.length === 0) {
       console.log("[settings] no settings row found, using defaults");
       return DEFAULT_SETTINGS;
     }
-
     return mapRow(rows[0]);
   } catch (err) {
     console.error("[settings] failed to load from ClickHouse, using defaults:", err);

@@ -1,5 +1,5 @@
 import { clickhouse } from "./client.js";
-import { runSelectQuery, toSafeInt, toSafeFloat } from "./mcpClient.js";
+import { runSelectQuery, toSafeInt, toSafeFloat, toSafeString } from "./mcpClient.js";
 
 export async function getCurrentSnapshot(windowMinutes = 10) {
   const w = toSafeInt(windowMinutes);
@@ -26,9 +26,10 @@ export async function getAudienceTimeline(
   region?: string,
   windowMinutes = 30
 ) {
-  const conditions = ["minute >= now() - INTERVAL {windowMinutes:UInt32} MINUTE"];
-  if (titleId) conditions.push("title_id = {titleId:String}");
-  if (region) conditions.push("region = {region:String}");
+  const w = toSafeInt(windowMinutes);
+  const conditions = [`minute >= now() - INTERVAL ${w} MINUTE`];
+  if (titleId) conditions.push(`title_id = '${toSafeString(titleId)}'`);
+  if (region) conditions.push(`region = '${toSafeString(region)}'`);
 
   const query = `
     SELECT
@@ -45,16 +46,13 @@ export async function getAudienceTimeline(
     ORDER BY minute ASC
   `;
 
-  const resultSet = await clickhouse.query({
-    query,
-    query_params: { windowMinutes, titleId, region },
-    format: "JSONEachRow",
-  });
-
-  return resultSet.json();
+  return runSelectQuery(query);
 }
 
 export async function getRegionalBreakdown(titleId: string, windowMinutes = 10) {
+  const tid = toSafeString(titleId);
+  const w = toSafeInt(windowMinutes);
+
   const query = `
     SELECT
       region,
@@ -62,19 +60,13 @@ export async function getRegionalBreakdown(titleId: string, windowMinutes = 10) 
       sumMerge(drop_off_count) AS drop_off_count,
       avgMerge(avg_seconds_watched) AS avg_seconds_watched
     FROM audience_stats_agg
-    WHERE title_id = {titleId:String}
-      AND minute >= now() - INTERVAL {windowMinutes:UInt32} MINUTE
+    WHERE title_id = '${tid}'
+      AND minute >= now() - INTERVAL ${w} MINUTE
     GROUP BY region
     ORDER BY viewer_count DESC
   `;
 
-  const resultSet = await clickhouse.query({
-    query,
-    query_params: { titleId, windowMinutes },
-    format: "JSONEachRow",
-  });
-
-  return resultSet.json();
+  return runSelectQuery(query);
 }
 
 export async function getAnomaliesRelative(
@@ -148,11 +140,5 @@ export async function getTitleMetadata() {
     GROUP BY title_id
     ORDER BY title_id
   `;
-
-  const resultSet = await clickhouse.query({
-    query,
-    format: "JSONEachRow",
-  });
-
-  return resultSet.json();
+  return runSelectQuery(query);
 }

@@ -27,6 +27,13 @@ export function toSafeFloat(value: number): number {
   return n;
 }
 
+export function toSafeString(value: string): string {
+  // Escapes single quotes and backslashes for safe interpolation into
+  // ClickHouse SQL string literals, since run_query has no named-parameter
+  // binding — everything must be a valid literal in the query text itself.
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
 export async function getClient(): Promise<Client> {
   if (!clientPromise) {
     clientPromise = (async () => {

@@ -1,4 +1,5 @@
 import { clickhouse } from "./client.js";
+import { runSelectQuery } from "./mcpClient.js";
 
 function toClickHouseDateTime(iso: string): string {
   return iso.replace("T", " ").replace(/\.\d+Z$/, "").replace("Z", "");
@@ -81,24 +82,21 @@ export interface AnomalyLogRow {
  * open/close is a new row rather than an UPDATE.
  */
 export async function getAnomalyLog(): Promise<AnomalyLogRow[]> {
-  const resultSet = await clickhouse.query({
-    query: `
-      SELECT
-        id,
-        argMax(title_id, updated_at) AS last_title_id,
-        argMax(region, updated_at) AS last_region,
-        argMax(decision_id, updated_at) AS last_decision_id,
-        argMax(status, updated_at) AS last_status,
-        argMin(opened_at, updated_at) AS first_opened_at,
-        argMax(closed_at, updated_at) AS last_closed_at,
-        max(updated_at) AS last_updated_at
-      FROM aurora.anomaly_events
-      GROUP BY id
-      ORDER BY last_updated_at DESC
-    `,
-    format: "JSONEachRow",
-  });
-  const rows = (await resultSet.json()) as any[];
+  const query = `
+    SELECT
+      id,
+      argMax(title_id, updated_at) AS last_title_id,
+      argMax(region, updated_at) AS last_region,
+      argMax(decision_id, updated_at) AS last_decision_id,
+      argMax(status, updated_at) AS last_status,
+      argMin(opened_at, updated_at) AS first_opened_at,
+      argMax(closed_at, updated_at) AS last_closed_at,
+      max(updated_at) AS last_updated_at
+    FROM aurora.anomaly_events
+    GROUP BY id
+    ORDER BY last_updated_at DESC
+  `;
+  const rows = await runSelectQuery(query);
   return rows.map((row) => ({
     id: row.id,
     titleId: row.last_title_id,

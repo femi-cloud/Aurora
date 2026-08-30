@@ -1,6 +1,9 @@
 import { clickhouse } from "./client.js";
+import { runSelectQuery, toSafeInt, toSafeFloat } from "./mcpClient.js";
 
 export async function getCurrentSnapshot(windowMinutes = 10) {
+  const w = toSafeInt(windowMinutes);
+
   const query = `
     SELECT
       title_id,
@@ -10,18 +13,12 @@ export async function getCurrentSnapshot(windowMinutes = 10) {
       sumMerge(drop_off_count) AS drop_off_count,
       avgMerge(avg_seconds_watched) AS avg_seconds_watched
     FROM audience_stats_agg
-    WHERE minute >= now() - INTERVAL {windowMinutes:UInt32} MINUTE
+    WHERE minute >= now() - INTERVAL ${w} MINUTE
     GROUP BY title_id, title_name, region
     ORDER BY title_id, region
   `;
 
-  const resultSet = await clickhouse.query({
-    query,
-    query_params: { windowMinutes },
-    format: "JSONEachRow",
-  });
-
-  return resultSet.json();
+  return runSelectQuery(query);
 }
 
 export async function getAudienceTimeline(
@@ -83,9 +80,14 @@ export async function getRegionalBreakdown(titleId: string, windowMinutes = 10) 
 export async function getAnomaliesRelative(
   deviationThreshold = 0.25,
   baselineWindowMinutes = 30,
-  recentWindowMinutes = 3, // widened slightly to accumulate more volume per title/region pair now that traffic is split across 20 titles instead of 6
+  recentWindowMinutes = 3,
   minViewers = 2
 ) {
+  const dev = toSafeFloat(deviationThreshold);
+  const baseline = toSafeInt(baselineWindowMinutes);
+  const recent = toSafeInt(recentWindowMinutes);
+  const minV = toSafeInt(minViewers);
+
   const query = `
     WITH baseline AS (
       SELECT
@@ -93,8 +95,8 @@ export async function getAnomaliesRelative(
         region,
         sumMerge(drop_off_count) / countMerge(viewer_count) AS avg_drop_off_rate
       FROM audience_stats_agg
-      WHERE minute >= now() - INTERVAL {baselineWindowMinutes:UInt32} MINUTE
-        AND minute < now() - INTERVAL {recentWindowMinutes:UInt32} MINUTE
+      WHERE minute >= now() - INTERVAL ${baseline} MINUTE
+        AND minute < now() - INTERVAL ${recent} MINUTE
       GROUP BY title_id, region
     ),
     recent AS (
@@ -106,7 +108,7 @@ export async function getAnomaliesRelative(
         sumMerge(drop_off_count) AS dropoffs,
         dropoffs / viewers AS current_rate
       FROM audience_stats_agg
-      WHERE minute >= now() - INTERVAL {recentWindowMinutes:UInt32} MINUTE
+      WHERE minute >= now() - INTERVAL ${recent} MINUTE
       GROUP BY title_id, title_name, region
     )
     SELECT
@@ -121,18 +123,12 @@ export async function getAnomaliesRelative(
     FROM recent r
     INNER JOIN baseline b ON r.title_id = b.title_id AND r.region = b.region
     LEFT JOIN titles t ON t.title_id = r.title_id
-    WHERE r.viewers >= {minViewers:UInt32}
-      AND (r.current_rate - b.avg_drop_off_rate) > {deviationThreshold:Float32}
+    WHERE r.viewers >= ${minV}
+      AND (r.current_rate - b.avg_drop_off_rate) > ${dev}
     ORDER BY deviation DESC
   `;
 
-  const resultSet = await clickhouse.query({
-    query,
-    query_params: { deviationThreshold, baselineWindowMinutes, recentWindowMinutes, minViewers },
-    format: "JSONEachRow",
-  });
-
-  return resultSet.json();
+  return runSelectQuery(query);
 }
 
 export async function getTitleMetadata() {

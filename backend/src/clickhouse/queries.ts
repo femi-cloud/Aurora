@@ -1,4 +1,3 @@
-import { clickhouse } from "./client.js";
 import { runSelectQuery, toSafeInt, toSafeFloat, toSafeString } from "./mcpClient.js";
 
 export async function getCurrentSnapshot(windowMinutes = 10) {

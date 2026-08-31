@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getAnomalies, getAnomalyLog, getTitles } from "../api/client";import {
+import { getAnomalies, getAnomalyLog, getTitles } from "../api/client";
+import {
   Select,
   SelectContent,
   SelectItem,

@@ -177,8 +177,8 @@ Aurora/
 │ ├── src/
 │ │ ├── index.ts API routes (snapshot, timeline, regional, anomalies, titles, predict, query/natural, decisions, decisions/history)
 │ │ ├── clickhouse/
-│ │ │ ├── client.ts ClickHouse connection
-│ │ │ ├── queries.ts getCurrentSnapshot, getAudienceTimeline, getRegionalBreakdown, getAnomaliesRelative, getTitleMetadata (snapshot/anomalies via MCP, rest direct)
+│ ├── client.ts ClickHouse connection (still used by decisions.ts/anomalyEvents.ts/settings.ts writes)
+│ ├── queries.ts getCurrentSnapshot, getAudienceTimeline, getRegionalBreakdown, getAnomaliesRelative, getTitleMetadata — all five via the ClickHouse MCP server (mcpClient.ts)
 │ │ │ ├── mcpClient.ts MCP client — runSelectQuery() via the official ClickHouse MCP server
 │ │ │ ├── decisions.ts persistDecisionSnapshot, loadLatestDecisions, getDecisionHistory (agent_decisions table)
 │ │ │ └── run-migration.ts one-off script to run .sql files via the Node client

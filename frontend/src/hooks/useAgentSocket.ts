@@ -9,6 +9,8 @@ export function useAgentSocket() {
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
 
+  const MAX_DECISIONS = 200;
+
   useEffect(() => {
     const socket = new WebSocket(WS_URL);
     socketRef.current = socket;
@@ -22,10 +24,11 @@ export function useAgentSocket() {
         const decision: AgentDecision = message.decision;
         setDecisions((prev) => {
           const existingIndex = prev.findIndex((d) => d.id === decision.id);
-          if (existingIndex === -1) return [decision, ...prev];
-          const next = [...prev];
-          next[existingIndex] = decision;
-          return next;
+          const next =
+            existingIndex === -1
+              ? [decision, ...prev]
+              : prev.map((d, i) => (i === existingIndex ? decision : d));
+          return next.slice(0, MAX_DECISIONS);
         });
       }
     };
@@ -43,14 +46,11 @@ export function useAgentSocket() {
     })
     .then((initial: AgentDecision[]) => {
       setDecisions((prev) => {
-        // Merge fetched history with anything the WebSocket already
-        // delivered while this request was in flight, dedup by id,
-        // most recent first.
         const merged = new Map(initial.map((d) => [d.id, d]));
         for (const d of prev) merged.set(d.id, d);
-        return Array.from(merged.values()).sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
+        return Array.from(merged.values())
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+          .slice(0, MAX_DECISIONS);
       });
     })
     .catch((err) => console.error("[useAgentSocket] failed to fetch decision history:", err));

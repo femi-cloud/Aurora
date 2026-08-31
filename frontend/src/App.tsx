@@ -15,7 +15,7 @@ import { Scene3D } from "./components/Scene3D";
 import { DecisionHistory } from "./components/DecisionHistory";
 import { TitleDetail } from "./components/TitleDetail";
 import { SettingsPage } from "./components/SettingsPage";
-
+import { TitlesProvider } from "./context/TitlesContext";
 
 
 const AURORA_LETTERS = [
@@ -209,11 +209,13 @@ function App() {
 export default function Root() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<App />} />
-        <Route path="/titles/:titleId" element={<TitleDetail />} />
-        <Route path="/settings" element={<SettingsPage />} />
-      </Routes>
+      <TitlesProvider>
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/titles/:titleId" element={<TitleDetail />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Routes>
+      </TitlesProvider>
     </BrowserRouter>
   );
 }

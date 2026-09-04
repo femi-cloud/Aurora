@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAgentSocket} from "../hooks/useAgentSocket";
 import type { AgentDecision } from "../../../packages/shared/src/types";
 import { useTitles } from "../hooks/useTitles";
@@ -12,14 +12,41 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export function RecommendationsPanel() {
+interface RecommendationsPanelProps {
+  focusDecisionId?: string | null;
+}
+
+export function RecommendationsPanel({ focusDecisionId }: RecommendationsPanelProps) {
   const { decisions, connected, sendAction } = useAgentSocket();
   const [statusFilter, setStatusFilter] = useState("all");
+  const cardRefs = useRef(new Map<string, HTMLDivElement>());
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
 
   const { titles } = useTitles();
   const [titleFilter, setTitleFilter] = useState("all");
   const [titleSearch, setTitleSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+
+  // Jump to a decision selected from an anomaly card: clear whichever
+  // filter would hide it, then scroll it into view and flash it.
+  useEffect(() => {
+    if (!focusDecisionId) return;
+    const target = decisions.find((d) => d.id === focusDecisionId);
+    if (!target) return;
+
+    if (statusFilter !== "all" && target.status !== statusFilter) setStatusFilter("all");
+    if (titleFilter !== "all" && target.titleId !== titleFilter) setTitleFilter("all");
+    if (typeFilter !== "all" && target.type !== typeFilter) setTypeFilter("all");
+
+    setHighlightedId(focusDecisionId);
+    cardRefs.current.get(focusDecisionId)?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    const timeout = setTimeout(() => setHighlightedId(null), 2000);
+    return () => clearTimeout(timeout);
+    // Only re-run when a *new* decision is targeted, not on every
+    // websocket update or filter change this same effect causes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusDecisionId]);
 
   const filteredTitles = titles.filter((t) =>
     t.title_name.toLowerCase().includes(titleSearch.toLowerCase())
@@ -138,12 +165,22 @@ export function RecommendationsPanel() {
       ) : (
         <div className="grid gap-3">
           {filteredDecisions.map((decision) => (
-            <DecisionCard
+            <div
               key={decision.id}
-              decision={decision}
-              onAccept={() => sendAction(decision.id, "accept")}
-              onReject={() => sendAction(decision.id, "reject")}
-            />
+              ref={(el) => {
+                if (el) cardRefs.current.set(decision.id, el);
+                else cardRefs.current.delete(decision.id);
+              }}
+              className={`rounded-lg transition-shadow ${
+                highlightedId === decision.id ? "ring-2 ring-marquee" : ""
+              }`}
+            >
+              <DecisionCard
+                decision={decision}
+                onAccept={() => sendAction(decision.id, "accept")}
+                onReject={() => sendAction(decision.id, "reject")}
+              />
+            </div>
           ))}
         </div>
       )}

@@ -18,9 +18,7 @@ interface AnomalyLogEntry {
   stillActive: boolean;
   detectedAt: string;
   resolvedAt: string | null;
-  // Metrics only come from /api/anomalies (the live snapshot), so they're
-  // only guaranteed while the anomaly is active. Once closed, we keep the
-  // last known values from the previous render rather than blanking them.
+  decisionId: string | null;
   deviation: number | null;
   currentRate: number | null;
   baselineRate: number | null;
@@ -41,7 +39,11 @@ function formatPct(value: number | null): string {
   return value === null ? "—" : `${Math.round(value * 100)}%`;
 }
 
-export function Anomalies() {
+interface AnomaliesProps {
+  onSelectDecision?: (decisionId: string) => void;
+}
+
+export function Anomalies({ onSelectDecision }: AnomaliesProps) {
   const [log, setLog] = useState<AnomalyLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,15 +93,25 @@ export function Anomalies() {
                 stillActive: row.status === "opened",
                 detectedAt: row.openedAt,
                 resolvedAt: row.closedAt,
+                decisionId: row.decisionId,
                 deviation: metrics?.deviation ?? previous?.deviation ?? null,
                 currentRate: metrics?.current_rate ?? previous?.currentRate ?? null,
                 baselineRate: metrics?.baseline_rate ?? previous?.baselineRate ?? null,
               };
             });
 
-            return merged
+            // Active anomalies must never be truncated, or their linked
+            // recommendation would keep showing with no visible source anomaly.
+            // Only cap the resolved ones once there's history to trim.
+            const active = merged.filter((e) => e.stillActive);
+            const resolvedCapped = merged
+              .filter((e) => !e.stillActive)
               .sort((a, b) => b.detectedAt.localeCompare(a.detectedAt))
               .slice(0, 15);
+
+            return [...active, ...resolvedCapped].sort((a, b) =>
+              b.detectedAt.localeCompare(a.detectedAt)
+            );
           });
 
           setError(null);
@@ -193,7 +205,10 @@ export function Anomalies() {
           {filteredLog.map((anomaly) => (
             <div
               key={anomaly.key}
+              onClick={() => anomaly.decisionId && onSelectDecision?.(anomaly.decisionId)}
               className={`rounded-lg p-4 flex items-center justify-between border transition-opacity ${
+                anomaly.decisionId ? "cursor-pointer hover:border-marquee/50" : ""
+              } ${
                 anomaly.stillActive
                   ? "bg-tally/10 border-tally/40"
                   : "bg-surface border-border opacity-50"

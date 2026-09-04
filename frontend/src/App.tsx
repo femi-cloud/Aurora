@@ -61,6 +61,7 @@ function App() {
   const [mode, setMode] = useState<"2d" | "3d" | "history">("2d");
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
+  const [focusedDecisionId, setFocusedDecisionId] = useState<string | null>(null);
 
   const navigate = useNavigate();
 
@@ -162,24 +163,26 @@ function App() {
         <DecisionHistory />
       ) : (
         <>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10">
-          <section>
-            <SectionHeading index={1} accent="scope">Signal</SectionHeading>
-            <Timeline />
-            <RegionalBreakdown />
-          </section>
-
-          <section>
-            <SectionHeading index={2} accent="tally">Detection</SectionHeading>
-            <Anomalies />
-          </section>
+        <div className="mb-10">
+          <SectionHeading index={1} accent="scope">Signal</SectionHeading>
+          <Timeline />
+          <RegionalBreakdown />
         </div>
 
-        <div className="border-t border-border pt-8 mb-10">
-          <SectionHeading index={3} accent="marquee">Decision</SectionHeading>
-          <div className="max-h-125 overflow-y-auto custom-scrollbar pr-2">
-            <RecommendationsPanel />
-          </div>
+        <div className="border-t border-border pt-8 mb-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <section>
+            <SectionHeading index={2} accent="tally">Detection</SectionHeading>
+            <div className="max-h-125 overflow-y-auto custom-scrollbar pr-2">
+              <Anomalies onSelectDecision={setFocusedDecisionId} />
+            </div>
+          </section>
+
+          <section>
+            <SectionHeading index={3} accent="marquee">Decision</SectionHeading>
+            <div className="max-h-125 overflow-y-auto custom-scrollbar pr-2">
+              <RecommendationsPanel focusDecisionId={focusedDecisionId} />
+            </div>
+          </section>
         </div>
 
         <div className="border-t border-border pt-8 mb-10">
